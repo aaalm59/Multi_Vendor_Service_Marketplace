@@ -45,6 +45,13 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         validated_data.pop('password_confirm')
         validated_data['username'] = validated_data['email']
         user = User.objects.create_user(**validated_data)
+        # Auto-create Customer profile so booking and customer APIs work immediately
+        if user.role == 'customer':
+            from apps.customers.models import Customer
+            Customer.objects.get_or_create(
+                user=user,
+                defaults={'address': '', 'city': '', 'state': '', 'postal_code': ''},
+            )
         return user
 
 class UserUpdateSerializer(serializers.ModelSerializer):

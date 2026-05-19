@@ -78,8 +78,8 @@ export const bookingAPI = {
     apiClient.post(`/bookings/${id}/mark_completed/`, { final_amount: finalAmount }),
   updateStatus: (id, statusVal, extra = {}) =>
     apiClient.post(`/bookings/${id}/update_status/`, { status: statusVal, ...extra }),
-  cancelBooking: (id) =>
-    apiClient.post(`/bookings/${id}/cancel_booking/`),
+  cancelBooking: (id, reason) =>
+    apiClient.post(`/bookings/${id}/cancel_booking/`, { reason }),
   submitReview: (id, rating, review = '') =>
     apiClient.post(`/bookings/${id}/submit_review/`, { rating, review }),
   uploadRepairImage: (id, formData) =>
@@ -90,6 +90,10 @@ export const bookingAPI = {
     apiClient.post(`/bookings/${id}/add_note/`, { note }),
   getRepairImages: (id) =>
     apiClient.get(`/bookings/${id}/repair_images/`),
+  getMessages: (id) =>
+    apiClient.get(`/bookings/${id}/messages/`),
+  sendMessage: (id, payload) =>
+    apiClient.post(`/bookings/${id}/messages/`, payload),
 }
 
 // Technician APIs

@@ -1,15 +1,32 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.serializers import ModelSerializer
-from apps.bookings.models import Booking, RepairImage
+from apps.bookings.models import Booking, RepairImage, BookingMessage
 from apps.customers.serializers import CustomerDetailSerializer
 from apps.technicians.views import TechnicianSerializer
 from apps.services.views import ServiceSerializer
 from apps.users.permissions import CUSTOMER, TECHNICIAN, HasRolePermission, MANAGER_ROLES, SERVICE_ROLES
 from apps.users.audit import AuditLoggingMixin
 from apps.users.models import ActivityLog
+
+
+class BookingMessageSerializer(ModelSerializer):
+    sender_name = serializers.SerializerMethodField()
+    sender_role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookingMessage
+        fields = ['id', 'sender', 'sender_name', 'sender_role', 'message',
+                  'attachment', 'attachment_name', 'is_read', 'created_at']
+        read_only_fields = ['id', 'sender', 'sender_name', 'sender_role', 'is_read', 'created_at']
+
+    def get_sender_name(self, obj):
+        return obj.sender.get_full_name()
+
+    def get_sender_role(self, obj):
+        return obj.sender.role
 
 
 class RepairImageSerializer(ModelSerializer):
@@ -33,6 +50,16 @@ class BookingSerializer(ModelSerializer):
         model = Booking
         fields = '__all__'
         read_only_fields = ['id', 'booking_number', 'completion_date', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'customer': {'required': False, 'allow_null': True},
+            'scheduled_date': {'required': False, 'allow_null': True},
+            'scheduled_time': {'required': False, 'allow_null': True},
+            'quote_amount': {'required': False, 'allow_null': True},
+            'landmark': {'required': False, 'allow_blank': True},
+            'area': {'required': False, 'allow_blank': True},
+            'city': {'required': False, 'allow_blank': True},
+            'pincode': {'required': False, 'allow_blank': True},
+        }
 
 class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     audit_module = 'bookings'
@@ -53,6 +80,7 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         'repair_images': MANAGER_ROLES | SERVICE_ROLES,
         'cancel_booking': MANAGER_ROLES | {CUSTOMER},
         'submit_review': MANAGER_ROLES | {CUSTOMER},
+        'messages': MANAGER_ROLES | {CUSTOMER, TECHNICIAN},
         'write': MANAGER_ROLES,
     }
     filterset_fields = ['customer', 'technician', 'status']
@@ -70,8 +98,16 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        if getattr(user, 'role', None) == CUSTOMER and hasattr(user, 'customer_profile'):
-            serializer.save(customer=user.customer_profile)
+        if getattr(user, 'role', None) == CUSTOMER:
+            if not hasattr(user, 'customer_profile'):
+                # Auto-create a minimal Customer profile so the booking can proceed
+                from apps.customers.models import Customer
+                profile = Customer.objects.create(
+                    user=user, address='', city='', state='', postal_code=''
+                )
+            else:
+                profile = user.customer_profile
+            serializer.save(customer=profile)
             return
         serializer.save()
     
@@ -198,13 +234,76 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
                     {'error': 'Only pending or assigned bookings can be cancelled'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+        reason = request.data.get('reason', '').strip()
+        if not reason:
+            return Response({'error': 'Cancellation reason is required'}, status=status.HTTP_400_BAD_REQUEST)
         old_status = booking.status
         booking.status = 'cancelled'
+        booking.cancellation_reason = reason
         booking.save()
         ActivityLog.log(request.user, 'status_change', 'bookings',
-            f"Booking {booking.booking_number} cancelled (was {old_status})",
+            f"Booking {booking.booking_number} cancelled (was {old_status}): {reason}",
             request=request, object_id=booking.pk)
         return Response(self.get_serializer(booking).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get', 'post'])
+    def messages(self, request, pk=None):
+        """List or send chat messages for a booking."""
+        booking = self.get_object()
+        user = request.user
+
+        if getattr(user, 'role', None) == CUSTOMER:
+            if not hasattr(user, 'customer_profile') or booking.customer != user.customer_profile:
+                return Response({'error': 'Not your booking'}, status=status.HTTP_403_FORBIDDEN)
+        elif getattr(user, 'role', None) == TECHNICIAN:
+            if not hasattr(user, 'technician_profile') or booking.technician != user.technician_profile:
+                return Response({'error': 'Not assigned to this booking'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.method == 'GET':
+            msgs = BookingMessage.objects.filter(booking=booking)
+            msgs.exclude(sender=user).filter(is_read=False).update(is_read=True)
+            return Response(BookingMessageSerializer(msgs, many=True, context={'request': request}).data)
+
+        # POST — send message (text and/or attachment)
+        text = request.data.get('message', '').strip()
+        attachment = request.FILES.get('attachment')
+        if not text and not attachment:
+            return Response({'error': 'Message or attachment required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        msg = BookingMessage.objects.create(
+            booking=booking,
+            sender=user,
+            message=text,
+            attachment=attachment,
+            attachment_name=attachment.name if attachment else '',
+        )
+
+        # Broadcast via WebSocket channel group so open clients see it instantly
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            channel_layer = get_channel_layer()
+            attachment_url = request.build_absolute_uri(msg.attachment.url) if msg.attachment else None
+            async_to_sync(channel_layer.group_send)(
+                f'booking_chat_{booking.id}',
+                {
+                    'type': 'chat_message',
+                    'id': str(msg.id),
+                    'sender': str(msg.sender_id),
+                    'sender_name': user.get_full_name(),
+                    'sender_role': user.role,
+                    'message': msg.message,
+                    'attachment': attachment_url,
+                    'attachment_name': msg.attachment_name,
+                    'is_read': msg.is_read,
+                    'created_at': msg.created_at.isoformat(),
+                }
+            )
+        except Exception:
+            pass  # WS broadcast is best-effort; REST response is the source of truth
+
+        serializer = BookingMessageSerializer(msg, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def submit_review(self, request, pk=None):

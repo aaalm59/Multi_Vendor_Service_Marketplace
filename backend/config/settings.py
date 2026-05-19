@@ -44,6 +44,7 @@ ALLOWED_HOSTS = env('ALLOWED_HOSTS', default='localhost,127.0.0.1,backend,0.0.0.
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',  # must be before django.contrib.staticfiles to enable ASGI runserver
     # Django defaults
     'django.contrib.admin',
     'django.contrib.auth',
@@ -53,6 +54,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     # Third-party
+    'channels',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
@@ -109,6 +111,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 AUTH_USER_MODEL = 'users.User'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [env('REDIS_URL', default='redis://redis:6379/0')],
+        },
+    },
+}
 
 # Database
 DATABASES = {

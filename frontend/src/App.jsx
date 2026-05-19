@@ -25,7 +25,9 @@ import AdminUsersPage from './pages/admin/UsersPage'
 import ManagerPermissionsPage from './pages/admin/ManagerPermissionsPage'
 import ActivityLogsPage from './pages/admin/ActivityLogsPage'
 import TechnicianJobsPage from './technician/TechnicianJobsPage'
+import CustomerInvoicesPage from './pages/customer/CustomerInvoicesPage'
 import { canAccess, firstRouteForRole, navItems, ROLES } from './routes/rbac'
+import { CallProvider } from './context/CallContext'
 
 // Layouts
 import MainLayout from './layouts/MainLayout'
@@ -87,6 +89,7 @@ const AppRoutes = () => {
                 <Route path="/admin/manager-permissions" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ManagerPermissionsPage /></ProtectedRoute>} />
                 <Route path="/admin/activity-logs" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ActivityLogsPage /></ProtectedRoute>} />
                 <Route path="/technician/jobs" element={<ProtectedRoute roles={[ROLES.TECHNICIAN]}><TechnicianJobsPage /></ProtectedRoute>} />
+                <Route path="/customer/invoices" element={<ProtectedRoute roles={[ROLES.CUSTOMER]}><CustomerInvoicesPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute roles={routeRoles['/settings']}><SettingsPage /></ProtectedRoute>} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />
               </Routes>
@@ -103,8 +106,10 @@ function App() {
     <Provider store={store}>
       <Router>
         <AuthBootstrap />
-        <AppRoutes />
-        <Toaster position="top-right" />
+        <CallProvider>
+          <AppRoutes />
+          <Toaster position="top-right" />
+        </CallProvider>
       </Router>
     </Provider>
   )

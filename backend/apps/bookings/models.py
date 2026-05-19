@@ -35,6 +35,7 @@ class Booking(BaseModel):
     notes = models.TextField(blank=True)
     quote_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)])
     final_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)])
+    cancellation_reason = models.TextField(blank=True)
     rating = models.IntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(5)])
     review = models.TextField(blank=True)
     
@@ -71,3 +72,20 @@ class RepairImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.booking.booking_number}"
+
+
+class BookingMessage(models.Model):
+    """Chat messages between customer, technician, and managers for a booking."""
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='chat_messages')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_booking_messages')
+    message = models.TextField(blank=True)
+    attachment = models.FileField(upload_to='chat_attachments/', null=True, blank=True)
+    attachment_name = models.CharField(max_length=255, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.sender.get_full_name()} → {self.booking.booking_number}: {self.message[:40]}"

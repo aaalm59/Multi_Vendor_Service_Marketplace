@@ -1,6 +1,6 @@
 import React from 'react'
 
-const DataTable = ({ columns, rows, loading, emptyMessage = 'No records found' }) => {
+const DataTable = ({ columns, rows, loading, emptyMessage = 'No records found', onRowClick }) => {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -16,7 +16,11 @@ const DataTable = ({ columns, rows, loading, emptyMessage = 'No records found' }
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-b border-gray-100 hover:bg-yellow-50/50">
+              <tr
+                key={row.id}
+                className={`border-b border-gray-100 hover:bg-yellow-50/50 ${onRowClick ? 'cursor-pointer' : ''}`}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 {columns.map((column) => (
                   <td key={column.key} className="px-5 py-4 text-sm text-gray-700">
                     {column.render ? column.render(row) : row[column.key]}

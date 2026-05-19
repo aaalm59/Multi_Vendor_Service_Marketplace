@@ -14,6 +14,9 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
+  optimizeDeps: {
+    include: ['microsoft-cognitiveservices-speech-sdk'],
+  },
   define: {
     'process.env': process.env,
   },

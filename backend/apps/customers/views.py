@@ -12,15 +12,16 @@ class CustomerViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     permission_module = 'customers'
     allowed_roles_by_action = {
-        'list':            SALES_ROLES | MANAGER_ROLES,
+        'list':            SALES_ROLES | MANAGER_ROLES | {CUSTOMER},  # customer sees only own record (get_queryset filters)
         'retrieve':        SALES_ROLES | MANAGER_ROLES | {CUSTOMER},
         'create':          SALES_ROLES | MANAGER_ROLES,
         'update':          SALES_ROLES | MANAGER_ROLES | {CUSTOMER},
         'partial_update':  SALES_ROLES | MANAGER_ROLES | {CUSTOMER},
-        'destroy':         SALES_ROLES | MANAGER_ROLES,   # customers cannot delete their own account
+        'destroy':         SALES_ROLES | MANAGER_ROLES,
         'by_city':         SALES_ROLES | MANAGER_ROLES,
         'top_customers':   SALES_ROLES | MANAGER_ROLES,
         'bookings':        SALES_ROLES | MANAGER_ROLES | {CUSTOMER},
+        'update_profile':  SALES_ROLES | MANAGER_ROLES | {CUSTOMER},
     }
     
     def get_serializer_class(self):

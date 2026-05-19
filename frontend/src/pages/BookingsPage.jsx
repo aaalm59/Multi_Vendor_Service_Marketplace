@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { FiCheck, FiPlus, FiUserCheck, FiX, FiDownload } from 'react-icons/fi'
+import { FiCheck, FiPlus, FiUserCheck, FiDownload } from 'react-icons/fi'
 import { useSelector } from 'react-redux'
 import { bookingAPI, customerAPI, serviceAPI, technicianAPI } from '../services/api'
 import toast from 'react-hot-toast'

@@ -1,0 +1,171 @@
+import apiClient from './apiClient'
+
+// Authentication APIs
+export const authAPI = {
+  login: (email, password) =>
+    apiClient.post('/auth/login/', { email, password }),
+  register: (data) =>
+    apiClient.post('/auth/register/', data),
+  logout: (refreshToken) =>
+    apiClient.post('/auth/logout/', { refresh: refreshToken }),
+  getCurrentUser: () =>
+    apiClient.get('/auth/me/'),
+  changePassword: (data) =>
+    apiClient.post('/auth/change_password/', data),
+}
+
+// User APIs
+export const userAPI = {
+  getAll: (params) =>
+    apiClient.get('/users/', { params }),
+  getById: (id) =>
+    apiClient.get(`/users/${id}/`),
+  update: (id, data) =>
+    apiClient.patch(`/users/${id}/`, data),
+  getByRole: (role) =>
+    apiClient.get(`/users/by_role/?role=${role}`),
+}
+
+// Customer APIs
+export const customerAPI = {
+  getAll: (params) =>
+    apiClient.get('/customers/', { params }),
+  getById: (id) =>
+    apiClient.get(`/customers/${id}/`),
+  create: (data) =>
+    apiClient.post('/customers/', data),
+  update: (id, data) =>
+    apiClient.patch(`/customers/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/customers/${id}/`),
+  getByCity: (city) =>
+    apiClient.get(`/customers/by_city/?city=${city}`),
+  getTopCustomers: (limit = 10) =>
+    apiClient.get(`/customers/top_customers/?limit=${limit}`),
+}
+
+// Booking APIs
+export const bookingAPI = {
+  getAll: (params) =>
+    apiClient.get('/bookings/', { params }),
+  getById: (id) =>
+    apiClient.get(`/bookings/${id}/`),
+  create: (data) =>
+    apiClient.post('/bookings/', data),
+  update: (id, data) =>
+    apiClient.patch(`/bookings/${id}/`, data),
+  assignTechnician: (id, technicianId) =>
+    apiClient.post(`/bookings/${id}/assign_technician/`, { technician_id: technicianId }),
+  markCompleted: (id, finalAmount) =>
+    apiClient.post(`/bookings/${id}/mark_completed/`, { final_amount: finalAmount }),
+}
+
+// Technician APIs
+export const technicianAPI = {
+  getAll: (params) =>
+    apiClient.get('/technicians/', { params }),
+  getById: (id) =>
+    apiClient.get(`/technicians/${id}/`),
+  getAvailable: () =>
+    apiClient.get('/technicians/available/'),
+  getBySpecialization: (spec) =>
+    apiClient.get(`/technicians/by_specialization/?specialization=${spec}`),
+  getAvailability: (id) =>
+    apiClient.get(`/technicians/${id}/availability/`),
+}
+
+// Product APIs
+export const productAPI = {
+  getAll: (params) =>
+    apiClient.get('/inventory/products/', { params }),
+  getById: (id) =>
+    apiClient.get(`/inventory/products/${id}/`),
+  create: (data) =>
+    apiClient.post('/inventory/products/', data),
+  update: (id, data) =>
+    apiClient.patch(`/inventory/products/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/inventory/products/${id}/`),
+  getLowStock: () =>
+    apiClient.get('/inventory/products/low_stock/'),
+  getByBarcode: (barcode) =>
+    apiClient.get(`/inventory/products/by_barcode/?barcode=${barcode}`),
+}
+
+// Category APIs
+export const categoryAPI = {
+  getAll: () =>
+    apiClient.get('/inventory/categories/'),
+  create: (data) =>
+    apiClient.post('/inventory/categories/', data),
+  update: (id, data) =>
+    apiClient.patch(`/inventory/categories/${id}/`, data),
+}
+
+// Invoice APIs
+export const invoiceAPI = {
+  getAll: (params) =>
+    apiClient.get('/billing/invoices/', { params }),
+  getById: (id) =>
+    apiClient.get(`/billing/invoices/${id}/`),
+  create: (data) =>
+    apiClient.post('/billing/invoices/', data),
+  generatePDF: (id) =>
+    apiClient.post(`/billing/invoices/${id}/generate_pdf/`),
+}
+
+// Supplier APIs
+export const supplierAPI = {
+  getAll: (params) =>
+    apiClient.get('/suppliers/suppliers/', { params }),
+  getById: (id) =>
+    apiClient.get(`/suppliers/suppliers/${id}/`),
+  create: (data) =>
+    apiClient.post('/suppliers/suppliers/', data),
+  update: (id, data) =>
+    apiClient.patch(`/suppliers/suppliers/${id}/`, data),
+}
+
+// Purchase APIs
+export const purchaseAPI = {
+  getAll: (params) =>
+    apiClient.get('/suppliers/purchases/', { params }),
+  getById: (id) =>
+    apiClient.get(`/suppliers/purchases/${id}/`),
+  create: (data) =>
+    apiClient.post('/suppliers/purchases/', data),
+  markReceived: (id) =>
+    apiClient.post(`/suppliers/purchases/${id}/mark_received/`),
+}
+
+// Expense APIs
+export const expenseAPI = {
+  getAll: (params) =>
+    apiClient.get('/expenses/', { params }),
+  getById: (id) =>
+    apiClient.get(`/expenses/${id}/`),
+  create: (data) =>
+    apiClient.post('/expenses/', data),
+  update: (id, data) =>
+    apiClient.patch(`/expenses/${id}/`, data),
+}
+
+// Report APIs
+export const reportAPI = {
+  getAll: (params) =>
+    apiClient.get('/reports/reports/', { params }),
+  getDailyMetrics: (params) =>
+    apiClient.get('/reports/daily-metrics/', { params }),
+}
+
+// Notification APIs
+export const notificationAPI = {
+  getAll: () =>
+    apiClient.get('/notifications/'),
+  getUnread: () =>
+    apiClient.get('/notifications/unread/'),
+  markAsRead: (id) =>
+    apiClient.post(`/notifications/${id}/mark_as_read/`),
+  markAllRead: () =>
+    apiClient.post('/notifications/mark_all_read/'),
+}

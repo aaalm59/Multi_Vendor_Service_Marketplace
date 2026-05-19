@@ -1,0 +1,53 @@
+# Django Core
+Django==4.2.11
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-environ==0.11.2
+python-decouple==3.8
+
+# Database
+psycopg2-binary==2.9.9
+django-extensions==3.2.3
+
+# JWT Authentication
+djangorestframework-simplejwt==5.3.2
+PyJWT==2.8.1
+
+# Validation and Serialization
+marshmallow==3.20.1
+django-filter==23.5
+django-crispy-forms==2.1
+
+# Image Processing
+Pillow==10.1.0
+
+# Redis
+redis==5.0.1
+django-redis==5.4.0
+
+# Caching and Pagination
+djangorestframework-extensions==0.7.1
+
+# Logging and Monitoring
+python-json-logger==2.0.7
+
+# Password Hashing
+bcrypt==4.1.1
+
+# File Handling
+openpyxl==3.11.0
+reportlab==4.0.7
+PyPDF2==4.0.1
+
+# API Documentation
+drf-spectacular==0.26.5
+
+# Utilities
+pytz==2024.1
+requests==2.31.0
+celery==5.3.4
+
+# Development Tools
+black==24.1.1
+flake8==7.0.0
+isort==5.13.2

@@ -10,6 +10,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
     serializer_class = CustomerDetailSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'customers'
     allowed_roles_by_action = {
         'read': SALES_ROLES | MANAGER_ROLES | {CUSTOMER},
         'create': SALES_ROLES | MANAGER_ROLES,

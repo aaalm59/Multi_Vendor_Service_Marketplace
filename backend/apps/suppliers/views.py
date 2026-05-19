@@ -28,6 +28,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'suppliers'
     allowed_roles = INVENTORY_ROLES
     search_fields = ['name', 'email', 'phone']
     ordering_fields = ['name', 'total_purchases']

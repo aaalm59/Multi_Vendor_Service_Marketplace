@@ -21,6 +21,7 @@ class TechnicianViewSet(viewsets.ModelViewSet):
     queryset = Technician.objects.all()
     serializer_class = TechnicianSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'technicians'
     allowed_roles_by_action = {
         'read': MANAGER_ROLES | SERVICE_ROLES,
         'available': MANAGER_ROLES,

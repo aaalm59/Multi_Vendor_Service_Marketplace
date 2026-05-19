@@ -11,7 +11,7 @@ const Sidebar = ({ isOpen }) => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
-  const menuItems = navItems.filter((item) => canAccess(user, item.roles))
+  const menuItems = navItems.filter((item) => canAccess(user, item.roles, item.module))
 
   const isActive = (path) => location.pathname === path
 

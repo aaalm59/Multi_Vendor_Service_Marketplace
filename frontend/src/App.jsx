@@ -22,6 +22,8 @@ import ExpensesPage from './pages/ExpensesPage'
 import ServicesPage from './pages/ServicesPage'
 import SettingsPage from './pages/SettingsPage'
 import AdminUsersPage from './pages/admin/UsersPage'
+import ManagerPermissionsPage from './pages/admin/ManagerPermissionsPage'
+import TechnicianJobsPage from './technician/TechnicianJobsPage'
 import { canAccess, firstRouteForRole, navItems, ROLES } from './routes/rbac'
 
 // Layouts
@@ -81,6 +83,8 @@ const AppRoutes = () => {
                 <Route path="/expenses" element={<ProtectedRoute roles={routeRoles['/expenses']}><ExpensesPage /></ProtectedRoute>} />
                 <Route path="/reports" element={<ProtectedRoute roles={routeRoles['/reports']}><ReportsPage /></ProtectedRoute>} />
                 <Route path="/admin/users" element={<ProtectedRoute roles={[ROLES.ADMIN]}><AdminUsersPage /></ProtectedRoute>} />
+                <Route path="/admin/manager-permissions" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ManagerPermissionsPage /></ProtectedRoute>} />
+                <Route path="/technician/jobs" element={<ProtectedRoute roles={[ROLES.TECHNICIAN]}><TechnicianJobsPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute roles={routeRoles['/settings']}><SettingsPage /></ProtectedRoute>} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />
               </Routes>

@@ -1,5 +1,5 @@
 from django.db import models
-from apps.users.models import BaseModel
+from apps.users.models import BaseModel, User
 from apps.customers.models import Customer
 from apps.technicians.models import Technician
 from apps.services.models import Service
@@ -26,6 +26,10 @@ class Booking(BaseModel):
     scheduled_time = models.TimeField(null=True, blank=True)
     completion_date = models.DateTimeField(null=True, blank=True)
     service_address = models.TextField()
+    landmark = models.CharField(max_length=255, blank=True)
+    area = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    pincode = models.CharField(max_length=10, blank=True)
     problem_description = models.TextField()
     problem_image = models.ImageField(upload_to='problems/', null=True, blank=True)
     notes = models.TextField(blank=True)
@@ -52,3 +56,18 @@ class Booking(BaseModel):
             import uuid
             self.booking_number = f"BK{str(uuid.uuid4())[:8].upper()}"
         super().save(*args, **kwargs)
+
+
+class RepairImage(models.Model):
+    """Photos uploaded by technician during repair."""
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='repair_images')
+    image = models.ImageField(upload_to='repairs/')
+    caption = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"Image for {self.booking.booking_number}"

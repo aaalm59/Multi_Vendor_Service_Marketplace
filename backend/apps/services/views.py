@@ -13,6 +13,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     queryset = Service.objects.filter(is_available=True)
     serializer_class = ServiceSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'services'
     allowed_roles_by_action = {
         'read': ALL_AUTH_ROLES,
         'write': MANAGER_ROLES,

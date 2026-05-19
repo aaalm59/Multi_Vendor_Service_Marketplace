@@ -31,6 +31,7 @@ class ReportViewSet(viewsets.ModelViewSet):
     queryset = Report.objects.all()
     serializer_class = ReportSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'reports'
     allowed_roles = MANAGER_ROLES
     filterset_fields = ['report_type', 'generated_date']
     ordering_fields = ['generated_date', 'start_date']

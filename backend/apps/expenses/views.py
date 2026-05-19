@@ -33,6 +33,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'expenses'
     allowed_roles = MANAGER_ROLES
     filterset_fields = ['category', 'expense_date', 'is_approved']
     ordering_fields = ['expense_date', 'amount']

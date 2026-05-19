@@ -1,16 +1,31 @@
 from rest_framework import serializers
-from apps.users.models import User
+from apps.users.models import User, ManagerPermission
 from django.contrib.auth.password_validation import validate_password
+
+
+class ManagerPermissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ManagerPermission
+        fields = ['id', 'module', 'action']
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'avatar', 'bio', 'is_active']
 
+
 class UserDetailSerializer(serializers.ModelSerializer):
+    permissions = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'avatar', 'bio', 'is_verified', 'created_at', 'updated_at']
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'avatar', 'bio', 'is_verified', 'created_at', 'updated_at', 'permissions']
+
+    def get_permissions(self, obj):
+        if obj.role == 'manager':
+            return ManagerPermissionSerializer(obj.manager_permissions.all(), many=True).data
+        return []
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])

@@ -49,3 +49,48 @@ class User(AbstractUser):
     
     def __str__(self):
         return f"{self.get_full_name()} ({self.email})"
+
+
+class ManagerPermission(models.Model):
+    """Dynamic per-module permissions that Admin assigns to a Manager user."""
+    MODULE_CHOICES = (
+        ('customers', 'Customers'),
+        ('bookings', 'Bookings'),
+        ('inventory', 'Inventory'),
+        ('services', 'Services'),
+        ('staff', 'Staff'),
+        ('billing', 'Billing'),
+        ('reports', 'Reports'),
+        ('suppliers', 'Suppliers'),
+        ('expenses', 'Expenses'),
+        ('technicians', 'Technicians'),
+    )
+    ACTION_CHOICES = (
+        ('view', 'View'),
+        ('create', 'Create'),
+        ('update', 'Update'),
+        ('delete', 'Delete'),
+        ('export_csv', 'Export CSV'),
+        ('manage_staff', 'Manage Staff'),
+        ('manage_inventory', 'Manage Inventory'),
+        ('manage_services', 'Manage Services'),
+        ('manage_bookings', 'Manage Bookings'),
+    )
+
+    manager = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='manager_permissions',
+        limit_choices_to={'role': 'manager'},
+    )
+    module = models.CharField(max_length=50, choices=MODULE_CHOICES)
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES)
+
+    class Meta:
+        unique_together = ('manager', 'module', 'action')
+        ordering = ['manager', 'module', 'action']
+        verbose_name = 'Manager Permission'
+        verbose_name_plural = 'Manager Permissions'
+
+    def __str__(self):
+        return f"{self.manager.get_full_name()} — {self.module}:{self.action}"

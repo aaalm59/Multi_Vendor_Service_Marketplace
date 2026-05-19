@@ -72,6 +72,16 @@ export const bookingAPI = {
     apiClient.post(`/bookings/${id}/assign_technician/`, { technician_id: technicianId }),
   markCompleted: (id, finalAmount) =>
     apiClient.post(`/bookings/${id}/mark_completed/`, { final_amount: finalAmount }),
+  updateStatus: (id, statusVal, extra = {}) =>
+    apiClient.post(`/bookings/${id}/update_status/`, { status: statusVal, ...extra }),
+  uploadRepairImage: (id, formData) =>
+    apiClient.post(`/bookings/${id}/upload_repair_image/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  addNote: (id, note) =>
+    apiClient.post(`/bookings/${id}/add_note/`, { note }),
+  getRepairImages: (id) =>
+    apiClient.get(`/bookings/${id}/repair_images/`),
 }
 
 // Technician APIs
@@ -231,4 +241,12 @@ export const notificationAPI = {
     apiClient.post(`/notifications/${id}/mark_as_read/`),
   markAllRead: () =>
     apiClient.post('/notifications/mark_all_read/'),
+}
+
+// Manager Permission APIs (admin only)
+export const managerPermissionAPI = {
+  getPermissions: (managerId) =>
+    apiClient.get(`/users/${managerId}/manager_permissions/`),
+  setPermissions: (managerId, permissions) =>
+    apiClient.put(`/users/${managerId}/manager_permissions/`, { permissions }),
 }

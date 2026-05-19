@@ -26,6 +26,7 @@ class StaffViewSet(viewsets.ModelViewSet):
     queryset = Staff.objects.all()
     serializer_class = StaffSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'staff'
     allowed_roles = MANAGER_ROLES
     filterset_fields = ['designation', 'department', 'city']
     search_fields = ['user__first_name', 'user__last_name', 'user__email', 'department', 'city']

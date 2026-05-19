@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import { FiMenu, FiX } from 'react-icons/fi'
 import { useDispatch } from 'react-redux'
 import { toggleSidebar } from '../redux/store'
 import Sidebar from '../components/Sidebar'
@@ -20,12 +19,12 @@ const MainLayout = ({ children }) => {
       <Sidebar isOpen={sidebarOpen} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
         {/* Header */}
         <Header onToggleSidebar={handleToggleSidebar} sidebarOpen={sidebarOpen} />
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-gray-50">
           <div className="p-6">
             {children}
           </div>

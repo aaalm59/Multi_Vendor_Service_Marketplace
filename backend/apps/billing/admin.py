@@ -23,4 +23,3 @@ class PaymentAdmin(admin.ModelAdmin):
     list_display = ['invoice', 'amount', 'payment_method', 'status', 'payment_date']
     list_filter = ['status', 'payment_method', 'payment_date']
     search_fields = ['invoice__invoice_number', 'transaction_id']
-    readonly_fields = ['created_at']

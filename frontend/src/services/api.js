@@ -12,6 +12,12 @@ export const authAPI = {
     apiClient.get('/auth/me/'),
   changePassword: (data) =>
     apiClient.post('/auth/change_password/', data),
+  passwordReset: (email) =>
+    apiClient.post('/auth/password_reset/', { email }),
+  passwordResetConfirm: (data) =>
+    apiClient.post('/auth/password_reset_confirm/', data),
+  refreshToken: (refresh) =>
+    apiClient.post('/auth/token/refresh/', { refresh }),
 }
 
 // User APIs
@@ -72,6 +78,40 @@ export const technicianAPI = {
     apiClient.get(`/technicians/by_specialization/?specialization=${spec}`),
   getAvailability: (id) =>
     apiClient.get(`/technicians/${id}/availability/`),
+  create: (data) =>
+    apiClient.post('/technicians/', data),
+  update: (id, data) =>
+    apiClient.patch(`/technicians/${id}/`, data),
+}
+
+// Staff APIs
+export const staffAPI = {
+  getAll: (params) =>
+    apiClient.get('/staff/staff/', { params }),
+  getById: (id) =>
+    apiClient.get(`/staff/staff/${id}/`),
+  create: (data) =>
+    apiClient.post('/staff/staff/', data),
+  update: (id, data) =>
+    apiClient.patch(`/staff/staff/${id}/`, data),
+  attendance: (params) =>
+    apiClient.get('/staff/attendance/', { params }),
+  markAttendance: (id, status = 'present') =>
+    apiClient.post(`/staff/staff/${id}/mark_attendance/`, { status }),
+}
+
+// Service APIs
+export const serviceAPI = {
+  getAll: (params) =>
+    apiClient.get('/services/', { params }),
+  getById: (id) =>
+    apiClient.get(`/services/${id}/`),
+  create: (data) =>
+    apiClient.post('/services/', data),
+  update: (id, data) =>
+    apiClient.patch(`/services/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/services/${id}/`),
 }
 
 // Product APIs
@@ -124,6 +164,8 @@ export const supplierAPI = {
     apiClient.post('/suppliers/suppliers/', data),
   update: (id, data) =>
     apiClient.patch(`/suppliers/suppliers/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/suppliers/suppliers/${id}/`),
 }
 
 // Purchase APIs
@@ -148,6 +190,15 @@ export const expenseAPI = {
     apiClient.post('/expenses/', data),
   update: (id, data) =>
     apiClient.patch(`/expenses/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/expenses/${id}/`),
+}
+
+export const expenseCategoryAPI = {
+  getAll: (params) =>
+    apiClient.get('/expenses/categories/', { params }),
+  create: (data) =>
+    apiClient.post('/expenses/categories/', data),
 }
 
 // Report APIs
@@ -156,6 +207,10 @@ export const reportAPI = {
     apiClient.get('/reports/reports/', { params }),
   getDailyMetrics: (params) =>
     apiClient.get('/reports/daily-metrics/', { params }),
+  getDashboardSummary: () =>
+    apiClient.get('/reports/daily-metrics/dashboard_summary/'),
+  export: (format, params) =>
+    apiClient.get('/reports/reports/export/', { params: { format, ...params } }),
 }
 
 // Notification APIs

@@ -1,10 +1,10 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.serializers import IntegerField, ModelSerializer, SerializerMethodField
 from django.db.models import F
 from apps.inventory.models import Product, ProductCategory, Inventory, StockMovement
+from apps.users.permissions import HasRolePermission, INVENTORY_ROLES, SALES_ROLES
 
 class ProductCategorySerializer(ModelSerializer):
     class Meta:
@@ -14,6 +14,8 @@ class ProductCategorySerializer(ModelSerializer):
 class ProductSerializer(ModelSerializer):
     category_detail = ProductCategorySerializer(source='category', read_only=True)
     inventory = SerializerMethodField()
+    initial_stock = IntegerField(write_only=True, required=False, min_value=0, default=0)
+    reorder_level = IntegerField(write_only=True, required=False, min_value=0, default=10)
 
     def get_inventory(self, obj):
         inventory = getattr(obj, 'inventory', None)
@@ -29,6 +31,27 @@ class ProductSerializer(ModelSerializer):
     class Meta:
         model = Product
         fields = '__all__'
+
+    def create(self, validated_data):
+        initial_stock = validated_data.pop('initial_stock', 0)
+        reorder_level = validated_data.pop('reorder_level', 10)
+        product = super().create(validated_data)
+        Inventory.objects.get_or_create(
+            product=product,
+            defaults={
+                'quantity_on_hand': initial_stock,
+                'reorder_level': reorder_level,
+                'reorder_quantity': max(10, initial_stock),
+            },
+        )
+        if initial_stock:
+            StockMovement.objects.create(
+                product=product,
+                movement_type='purchase',
+                quantity=initial_stock,
+                reference_number='OPENING-STOCK',
+            )
+        return product
 
 class InventorySerializer(ModelSerializer):
     product_name = SerializerMethodField()
@@ -49,13 +72,23 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
     """Product category API"""
     queryset = ProductCategory.objects.all()
     serializer_class = ProductCategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasRolePermission]
+    allowed_roles_by_action = {
+        'read': SALES_ROLES | INVENTORY_ROLES,
+        'write': INVENTORY_ROLES,
+    }
 
 class ProductViewSet(viewsets.ModelViewSet):
     """Product management API"""
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasRolePermission]
+    allowed_roles_by_action = {
+        'read': SALES_ROLES | INVENTORY_ROLES,
+        'low_stock': SALES_ROLES | INVENTORY_ROLES,
+        'by_barcode': SALES_ROLES | INVENTORY_ROLES,
+        'write': INVENTORY_ROLES,
+    }
     filterset_fields = ['category', 'is_taxable']
     search_fields = ['name', 'SKU', 'barcode']
     
@@ -86,12 +119,20 @@ class InventoryViewSet(viewsets.ModelViewSet):
     """Inventory management API"""
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasRolePermission]
+    allowed_roles_by_action = {
+        'read': SALES_ROLES | INVENTORY_ROLES,
+        'write': INVENTORY_ROLES,
+    }
     filterset_fields = ['product']
 
 class StockMovementViewSet(viewsets.ModelViewSet):
     """Stock movement API"""
     queryset = StockMovement.objects.all()
     serializer_class = StockMovementSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasRolePermission]
+    allowed_roles_by_action = {
+        'read': SALES_ROLES | INVENTORY_ROLES,
+        'write': INVENTORY_ROLES,
+    }
     filterset_fields = ['product', 'movement_type']

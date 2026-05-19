@@ -7,6 +7,7 @@ const authSlice = createSlice({
   initialState: {
     user: null,
     token: Cookies.get('access_token') || null,
+    refreshToken: Cookies.get('refresh_token') || null,
     isLoading: false,
     error: null,
   },
@@ -20,6 +21,12 @@ const authSlice = createSlice({
         Cookies.set('access_token', action.payload)
       }
     },
+    setRefreshToken: (state, action) => {
+      state.refreshToken = action.payload
+      if (action.payload) {
+        Cookies.set('refresh_token', action.payload)
+      }
+    },
     setLoading: (state, action) => {
       state.isLoading = action.payload
     },
@@ -29,7 +36,9 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null
       state.token = null
+      state.refreshToken = null
       Cookies.remove('access_token')
+      Cookies.remove('refresh_token')
     },
   },
 })
@@ -61,7 +70,7 @@ const store = configureStore({
   },
 })
 
-export const { setUser, setToken, setLoading, setError, logout } = authSlice.actions
+export const { setUser, setToken, setRefreshToken, setLoading, setError, logout } = authSlice.actions
 export const { toggleSidebar, setSidebarOpen, setTheme } = uiSlice.actions
 
 export default store

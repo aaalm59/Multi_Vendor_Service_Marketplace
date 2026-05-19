@@ -1,23 +1,39 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from apps.customers.models import Customer
-from apps.customers.serializers import CustomerSerializer, CustomerDetailSerializer, CustomerUpdateSerializer
+from apps.customers.serializers import CustomerCreateSerializer, CustomerDetailSerializer, CustomerUpdateSerializer
+from apps.users.permissions import CUSTOMER, HasRolePermission, MANAGER_ROLES, SALES_ROLES
 
 class CustomerViewSet(viewsets.ModelViewSet):
     """Customer management API"""
     queryset = Customer.objects.all()
     serializer_class = CustomerDetailSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasRolePermission]
+    allowed_roles_by_action = {
+        'read': SALES_ROLES | MANAGER_ROLES | {CUSTOMER},
+        'create': SALES_ROLES | MANAGER_ROLES,
+        'write': SALES_ROLES | MANAGER_ROLES | {CUSTOMER},
+        'by_city': SALES_ROLES | MANAGER_ROLES,
+        'top_customers': SALES_ROLES | MANAGER_ROLES,
+    }
     
     def get_serializer_class(self):
+        if self.action == 'create':
+            return CustomerCreateSerializer
         if self.action == 'update' or self.action == 'partial_update':
             return CustomerUpdateSerializer
         return CustomerDetailSerializer
     
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+    filterset_fields = ['city', 'state']
+    search_fields = ['user__first_name', 'user__last_name', 'user__email', 'user__phone', 'city', 'shop_name']
+    ordering_fields = ['created_at', 'total_spent', 'city']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if getattr(self.request.user, 'role', None) == CUSTOMER:
+            return queryset.filter(user=self.request.user)
+        return queryset
     
     @action(detail=False, methods=['get'])
     def by_city(self, request):

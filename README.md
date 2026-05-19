@@ -167,7 +167,7 @@ project/
 - Docker & Docker Compose
 - Git
 - 4GB RAM minimum
-- Ports 5173, 8000, 5432, 6379, 5050 available
+- Ports 5173, 8001, 5433, 6380, 5050 available
 
 ### Installation
 
@@ -195,11 +195,13 @@ Or manually start with Docker Compose:
 docker-compose up -d
 ```
 
+The backend runs migrations and seeds local demo data automatically on container startup.
+
 4. **Access the application**
 ```
 Frontend:  http://localhost:5173
-Backend:   http://localhost:8000
-API Docs:  http://localhost:8000/api/docs/
+Backend:   http://localhost:8001
+API Docs:  http://localhost:8001/api/docs/
 pgAdmin:   http://localhost:5050
 ```
 
@@ -209,6 +211,18 @@ pgAdmin:   http://localhost:5050
 - **Email**: admin@example.com
 - **Password**: admin123
 
+### Demo Customer
+- **Email**: customer@example.com
+- **Password**: customer123
+
+### Demo Manager
+- **Email**: manager@example.com
+- **Password**: manager123
+
+### Demo Technician
+- **Email**: technician@example.com
+- **Password**: tech123
+
 ### pgAdmin
 - **Email**: admin@example.com
 - **Password**: admin123
@@ -216,8 +230,9 @@ pgAdmin:   http://localhost:5050
 ## 📚 API Documentation
 
 API documentation is available at:
-- **Swagger UI**: http://localhost:8000/api/docs/
-- **ReDoc**: http://localhost:8000/api/redoc/
+- **Swagger UI**: http://localhost:8001/api/docs/
+- **ReDoc**: http://localhost:8001/api/redoc/
+- **RBAC Matrix**: [docs/RBAC.md](docs/RBAC.md)
 
 ### Main API Endpoints
 
@@ -430,7 +445,7 @@ chmod +x scripts/*.sh
 
 For issues or questions:
 1. Check the logs: `docker-compose logs -f`
-2. Review API documentation: http://localhost:8000/api/docs/
+2. Review API documentation: http://localhost:8001/api/docs/
 3. Check database with pgAdmin: http://localhost:5050
 
 ## 📄 License
@@ -448,5 +463,5 @@ This project is proprietary.
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: January 2024  
-**Status**: Production Ready (Local Development)
+**Last Updated**: May 2026  
+**Status**: Local Development Ready

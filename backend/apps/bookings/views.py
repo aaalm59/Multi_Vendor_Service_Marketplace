@@ -1,12 +1,12 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.serializers import ModelSerializer
 from apps.bookings.models import Booking
 from apps.customers.serializers import CustomerDetailSerializer
 from apps.technicians.views import TechnicianSerializer
 from apps.services.views import ServiceSerializer
+from apps.users.permissions import CUSTOMER, HasRolePermission, MANAGER_ROLES, SERVICE_ROLES
 
 class BookingSerializer(ModelSerializer):
     def to_representation(self, instance):
@@ -19,13 +19,39 @@ class BookingSerializer(ModelSerializer):
     class Meta:
         model = Booking
         fields = '__all__'
+        read_only_fields = ['id', 'booking_number', 'completion_date', 'created_at', 'updated_at']
 
 class BookingViewSet(viewsets.ModelViewSet):
     """Booking management API"""
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasRolePermission]
+    allowed_roles_by_action = {
+        'read': MANAGER_ROLES | SERVICE_ROLES | {CUSTOMER},
+        'create': MANAGER_ROLES | {CUSTOMER},
+        'assign_technician': MANAGER_ROLES,
+        'mark_completed': MANAGER_ROLES | SERVICE_ROLES,
+        'write': MANAGER_ROLES,
+    }
     filterset_fields = ['customer', 'technician', 'status']
+    search_fields = ['booking_number', 'customer__user__first_name', 'customer__user__last_name', 'customer__user__phone', 'service__name']
+    ordering_fields = ['created_at', 'booking_date', 'scheduled_date', 'final_amount']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if getattr(user, 'role', None) == CUSTOMER:
+            return queryset.filter(customer__user=user)
+        if getattr(user, 'role', None) == 'technician':
+            return queryset.filter(technician__user=user)
+        return queryset
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if getattr(user, 'role', None) == CUSTOMER and hasattr(user, 'customer_profile'):
+            serializer.save(customer=user.customer_profile)
+            return
+        serializer.save()
     
     @action(detail=True, methods=['post'])
     def assign_technician(self, request, pk=None):

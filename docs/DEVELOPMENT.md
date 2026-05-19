@@ -28,8 +28,8 @@ docker-compose exec backend python manage.py migrate
 # Create superuser
 docker-compose exec backend python manage.py createsuperuser
 
-# Create sample data
-docker-compose exec backend python manage.py shell < scripts/sample_data.py
+# Create or refresh local demo data
+docker-compose exec backend python manage.py seed_local
 ```
 
 ## Backend Development
@@ -417,4 +417,3 @@ Ensure `vite.config.js` has proper watch settings
 - [React Docs](https://react.dev/)
 - [Tailwind CSS](https://tailwindcss.com/)
 - [Vite Docs](https://vitejs.dev/)
-

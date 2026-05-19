@@ -1,11 +1,17 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from apps.technicians.models import Technician, TechnicianAvailability
 from rest_framework.serializers import ModelSerializer
+from apps.users.serializers import UserDetailSerializer
+from apps.users.permissions import HasRolePermission, MANAGER_ROLES, SERVICE_ROLES
 
 class TechnicianSerializer(ModelSerializer):
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['user'] = UserDetailSerializer(instance.user).data
+        return data
+
     class Meta:
         model = Technician
         fields = '__all__'
@@ -14,7 +20,23 @@ class TechnicianViewSet(viewsets.ModelViewSet):
     """Technician management API"""
     queryset = Technician.objects.all()
     serializer_class = TechnicianSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasRolePermission]
+    allowed_roles_by_action = {
+        'read': MANAGER_ROLES | SERVICE_ROLES,
+        'available': MANAGER_ROLES,
+        'by_specialization': MANAGER_ROLES,
+        'availability': MANAGER_ROLES | SERVICE_ROLES,
+        'write': MANAGER_ROLES,
+    }
+    filterset_fields = ['availability_status']
+    search_fields = ['user__first_name', 'user__last_name', 'user__email', 'specialization']
+    ordering_fields = ['average_rating', 'completed_bookings', 'experience_years', 'created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if getattr(self.request.user, 'role', None) == 'technician':
+            return queryset.filter(user=self.request.user)
+        return queryset
     
     @action(detail=False, methods=['get'])
     def available(self, request):

@@ -1,12 +1,18 @@
 from decimal import Decimal
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.customers.models import Customer
+from apps.expenses.models import Expense, ExpenseCategory
 from apps.inventory.models import Inventory, Product, ProductCategory
 from apps.services.models import Service
+from apps.staff.models import Staff
+from apps.suppliers.models import Supplier
+from apps.technicians.models import Technician
+from apps.reports.models import DailyMetrics
 
 
 class Command(BaseCommand):
@@ -55,6 +61,63 @@ class Command(BaseCommand):
             },
         )
 
+        manager_user, created = User.objects.get_or_create(
+            email='manager@example.com',
+            defaults={
+                'username': 'manager@example.com',
+                'first_name': 'Shop',
+                'last_name': 'Manager',
+                'phone': '9000000002',
+                'role': 'manager',
+                'is_staff': True,
+            },
+        )
+        if created:
+            manager_user.set_password('manager123')
+            manager_user.save()
+
+        technician_user, created = User.objects.get_or_create(
+            email='technician@example.com',
+            defaults={
+                'username': 'technician@example.com',
+                'first_name': 'Ravi',
+                'last_name': 'Technician',
+                'phone': '9000000003',
+                'role': 'technician',
+            },
+        )
+        if created:
+            technician_user.set_password('tech123')
+            technician_user.save()
+
+        Staff.objects.get_or_create(
+            user=manager_user,
+            defaults={
+                'designation': 'manager',
+                'department': 'Operations',
+                'salary': Decimal('35000.00'),
+                'joining_date': timezone.localdate(),
+                'emergency_contact': '9000000099',
+                'address': 'Local Market Office',
+                'city': 'Patna',
+                'state': 'Bihar',
+                'postal_code': '800001',
+            },
+        )
+
+        Technician.objects.get_or_create(
+            user=technician_user,
+            defaults={
+                'specialization': 'Home wiring, fan repair, inverter service',
+                'experience_years': 6,
+                'hourly_rate': Decimal('250.00'),
+                'availability_status': 'available',
+                'completed_bookings': 42,
+                'average_rating': 4.6,
+                'total_earnings': Decimal('58000.00'),
+            },
+        )
+
         categories = ['Wire', 'Switch', 'Fan', 'LED', 'CCTV', 'Battery', 'Inverter', 'Motor Pump']
         category_map = {
             name: ProductCategory.objects.get_or_create(name=name)[0]
@@ -95,6 +158,63 @@ class Command(BaseCommand):
                     'description': description,
                     'base_price': price,
                     'estimated_duration': duration,
+                },
+            )
+
+        suppliers = [
+            ('Bright Electricals', 'Amit Kumar', 'bright@example.com', '9111111111', Decimal('45000.00'), Decimal('30000.00')),
+            ('Power House Traders', 'Neha Singh', 'powerhouse@example.com', '9222222222', Decimal('32000.00'), Decimal('32000.00')),
+        ]
+        for name, contact, email, phone, purchases, paid in suppliers:
+            Supplier.objects.get_or_create(
+                email=email,
+                defaults={
+                    'name': name,
+                    'contact_person': contact,
+                    'phone': phone,
+                    'address': 'Wholesale Market',
+                    'city': 'Patna',
+                    'state': 'Bihar',
+                    'postal_code': '800001',
+                    'gst_number': 'LOCALGST1234',
+                    'payment_terms': '15 days',
+                    'total_purchases': purchases,
+                    'total_paid': paid,
+                },
+            )
+
+        expense_categories = {
+            name: ExpenseCategory.objects.get_or_create(name=name)[0]
+            for name in ['Shop Rent', 'Electricity Bills', 'Salary', 'Transport', 'Misc Expenses']
+        }
+        Expense.objects.get_or_create(
+            description='Monthly shop rent',
+            expense_date=timezone.localdate(),
+            defaults={
+                'category': expense_categories['Shop Rent'],
+                'amount': Decimal('18000.00'),
+                'payment_method': 'bank_transfer',
+                'is_approved': True,
+                'approved_by': 'Local Admin',
+            },
+        )
+
+        today = timezone.localdate()
+        for offset in range(7):
+            day = today - timedelta(days=offset)
+            revenue = Decimal('4500.00') + Decimal(offset * 350)
+            expense = Decimal('1200.00') + Decimal(offset * 120)
+            DailyMetrics.objects.update_or_create(
+                date=day,
+                defaults={
+                    'total_revenue': revenue,
+                    'total_expenses': expense,
+                    'total_profit': revenue - expense,
+                    'total_bookings': 4 + offset,
+                    'completed_bookings': 2 + offset,
+                    'pending_bookings': 2,
+                    'total_products_sold': 8 + offset,
+                    'new_customers': 1 if offset % 2 == 0 else 0,
                 },
             )
 

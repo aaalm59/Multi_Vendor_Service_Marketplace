@@ -9,9 +9,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements/development.txt /app/requirements.txt
+COPY requirements/ /app/requirements/
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install -r requirements/development.txt
 
 # Copy project
 COPY . /app/

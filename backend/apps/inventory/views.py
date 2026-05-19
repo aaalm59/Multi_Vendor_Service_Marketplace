@@ -5,6 +5,7 @@ from rest_framework.serializers import IntegerField, ModelSerializer, Serializer
 from django.db.models import F
 from apps.inventory.models import Product, ProductCategory, Inventory, StockMovement
 from apps.users.permissions import HasRolePermission, INVENTORY_ROLES, SALES_ROLES
+from apps.users.audit import AuditLoggingMixin
 
 class ProductCategorySerializer(ModelSerializer):
     class Meta:
@@ -78,8 +79,9 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
         'write': INVENTORY_ROLES,
     }
 
-class ProductViewSet(viewsets.ModelViewSet):
+class ProductViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     """Product management API"""
+    audit_module = 'inventory'
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [HasRolePermission]

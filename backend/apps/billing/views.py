@@ -9,6 +9,7 @@ from apps.billing.models import Invoice, InvoiceItem, Payment
 from apps.inventory.models import Inventory, Product, StockMovement
 from apps.inventory.views import ProductSerializer
 from apps.users.permissions import CUSTOMER, HasRolePermission, SALES_ROLES
+from apps.users.audit import AuditLoggingMixin
 
 class InvoiceItemSerializer(ModelSerializer):
     product_detail = ProductSerializer(source='product', read_only=True)
@@ -89,8 +90,9 @@ class PaymentSerializer(ModelSerializer):
         model = Payment
         fields = '__all__'
 
-class InvoiceViewSet(viewsets.ModelViewSet):
+class InvoiceViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     """Invoice/Sales API"""
+    audit_module = 'billing'
     queryset = Invoice.objects.all()
     serializer_class = InvoiceSerializer
     permission_classes = [HasRolePermission]

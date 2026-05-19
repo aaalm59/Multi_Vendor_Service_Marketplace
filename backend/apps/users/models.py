@@ -94,3 +94,63 @@ class ManagerPermission(models.Model):
 
     def __str__(self):
         return f"{self.manager.get_full_name()} — {self.module}:{self.action}"
+
+
+class ActivityLog(models.Model):
+    """Audit trail — every significant user action is recorded here."""
+    ACTION_CHOICES = (
+        ('create', 'Create'),
+        ('update', 'Update'),
+        ('delete', 'Delete'),
+        ('login', 'Login'),
+        ('logout', 'Logout'),
+        ('export', 'Export'),
+        ('view', 'View'),
+        ('assign', 'Assign'),
+        ('status_change', 'Status Change'),
+        ('permission_change', 'Permission Change'),
+    )
+
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='activity_logs'
+    )
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    module = models.CharField(max_length=50)
+    description = models.TextField()
+    object_id = models.CharField(max_length=100, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    extra = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Activity Log'
+        verbose_name_plural = 'Activity Logs'
+        indexes = [
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['module', 'action']),
+        ]
+
+    def __str__(self):
+        user_str = self.user.get_full_name() if self.user else 'System'
+        return f"[{self.timestamp:%Y-%m-%d %H:%M}] {user_str} — {self.action} on {self.module}"
+
+    @classmethod
+    def log(cls, user, action, module, description, request=None, object_id='', extra=None):
+        ip = None
+        ua = ''
+        if request:
+            xff = request.META.get('HTTP_X_FORWARDED_FOR')
+            ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+            ua = request.META.get('HTTP_USER_AGENT', '')[:500]
+        cls.objects.create(
+            user=user if (user and user.is_authenticated) else None,
+            action=action,
+            module=module,
+            description=description,
+            object_id=str(object_id),
+            ip_address=ip,
+            user_agent=ua,
+            extra=extra or {},
+        )

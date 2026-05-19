@@ -50,12 +50,16 @@ export const customerAPI = {
     apiClient.post('/customers/', data),
   update: (id, data) =>
     apiClient.patch(`/customers/${id}/`, data),
+  updateProfile: (id, data) =>
+    apiClient.patch(`/customers/${id}/update_profile/`, data),
   delete: (id) =>
     apiClient.delete(`/customers/${id}/`),
   getByCity: (city) =>
     apiClient.get(`/customers/by_city/?city=${city}`),
   getTopCustomers: (limit = 10) =>
     apiClient.get(`/customers/top_customers/?limit=${limit}`),
+  getBookings: (id) =>
+    apiClient.get(`/customers/${id}/bookings/`),
 }
 
 // Booking APIs
@@ -74,6 +78,10 @@ export const bookingAPI = {
     apiClient.post(`/bookings/${id}/mark_completed/`, { final_amount: finalAmount }),
   updateStatus: (id, statusVal, extra = {}) =>
     apiClient.post(`/bookings/${id}/update_status/`, { status: statusVal, ...extra }),
+  cancelBooking: (id) =>
+    apiClient.post(`/bookings/${id}/cancel_booking/`),
+  submitReview: (id, rating, review = '') =>
+    apiClient.post(`/bookings/${id}/submit_review/`, { rating, review }),
   uploadRepairImage: (id, formData) =>
     apiClient.post(`/bookings/${id}/upload_repair_image/`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -249,4 +257,14 @@ export const managerPermissionAPI = {
     apiClient.get(`/users/${managerId}/manager_permissions/`),
   setPermissions: (managerId, permissions) =>
     apiClient.put(`/users/${managerId}/manager_permissions/`, { permissions }),
+}
+
+// Activity Log APIs (admin / manager)
+export const activityLogAPI = {
+  getAll: (params) =>
+    apiClient.get('/users/activity-logs/', { params }),
+  getByModule: (module, params) =>
+    apiClient.get('/users/activity-logs/', { params: { module, ...params } }),
+  getByUser: (userId, params) =>
+    apiClient.get('/users/activity-logs/', { params: { user: userId, ...params } }),
 }

@@ -18,7 +18,7 @@ class Customer(BaseModel):
     total_spent = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     total_bookings = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     average_rating = models.FloatField(default=0, validators=[MinValueValidator(0)])
-    preferred_contact = models.CharField(max_length=20, choices=[('phone', 'Phone'), ('email', 'Email'), ('sms', 'SMS')])
+    preferred_contact = models.CharField(max_length=20, choices=[('phone', 'Phone'), ('email', 'Email'), ('sms', 'SMS')], default='phone')
     
     class Meta:
         ordering = ['-created_at']

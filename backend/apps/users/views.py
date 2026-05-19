@@ -2,14 +2,17 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
-from apps.users.models import ManagerPermission
-from apps.users.serializers import UserSerializer, UserDetailSerializer, UserUpdateSerializer, AdminUserUpdateSerializer, AdminUserCreateSerializer, ManagerPermissionSerializer
-from apps.users.permissions import IsAdminOrManager, ADMIN
+from rest_framework.permissions import IsAuthenticated
+from apps.users.models import ManagerPermission, ActivityLog
+from apps.users.serializers import UserSerializer, UserDetailSerializer, UserUpdateSerializer, AdminUserUpdateSerializer, AdminUserCreateSerializer, ManagerPermissionSerializer, ActivityLogSerializer
+from apps.users.permissions import IsAdminOrManager, ADMIN, HasRolePermission
+from apps.users.audit import AuditLoggingMixin
 
 User = get_user_model()
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
+    audit_module = 'users'
     """User management API"""
     queryset = User.objects.all().order_by('-created_at')
     serializer_class = UserDetailSerializer
@@ -73,4 +76,18 @@ class UserViewSet(viewsets.ModelViewSet):
                 action=item.get('action'),
             )
             created.append(perm)
+        ActivityLog.log(request.user, 'permission_change', 'users',
+            f"Updated permissions for manager {manager.get_full_name()} ({len(created)} permissions set)",
+            request=request, object_id=manager.pk)
         return Response(ManagerPermissionSerializer(created, many=True).data, status=status.HTTP_200_OK)
+
+
+class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """Audit trail — admin read-only."""
+    queryset = ActivityLog.objects.select_related('user').all()
+    serializer_class = ActivityLogSerializer
+    permission_classes = [IsAdminOrManager]
+    filterset_fields = ['action', 'module']
+    search_fields = ['description', 'user__first_name', 'user__last_name', 'user__email']
+    ordering_fields = ['timestamp']
+    ordering = ['-timestamp']

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { FiCheck, FiPlus, FiUserCheck, FiDownload } from 'react-icons/fi'
+import React, { useEffect, useRef, useState } from 'react'
+import { FiCheck, FiPlus, FiUserCheck, FiDownload, FiX, FiXCircle, FiStar, FiCamera } from 'react-icons/fi'
 import { useSelector } from 'react-redux'
 import { bookingAPI, customerAPI, serviceAPI, technicianAPI } from '../services/api'
 import toast from 'react-hot-toast'
@@ -8,7 +8,7 @@ import FormField, { inputClass } from '../components/FormField'
 import Modal from '../components/Modal'
 import PageToolbar from '../components/PageToolbar'
 import StatusBadge from '../components/StatusBadge'
-import { canAccess, roleGroups, ROLES } from '../routes/rbac'
+import { canAccess, canDo, roleGroups, ROLES } from '../routes/rbac'
 import { downloadCSV } from '../utils/exportCSV'
 
 const BookingsPage = () => {
@@ -32,10 +32,28 @@ const BookingsPage = () => {
   const [finalAmount, setFinalAmount] = useState('')
   const [completing, setCompleting] = useState(false)
 
+  // Customer: cancel booking
+  const [cancelTarget, setCancelTarget] = useState(null)
+  const [cancelling, setCancelling] = useState(false)
+
+  // Customer: review modal
+  const [reviewModal, setReviewModal] = useState(null)
+  const [reviewRating, setReviewRating] = useState(0)
+  const [reviewText, setReviewText] = useState('')
+  const [submittingReview, setSubmittingReview] = useState(false)
+
+  // Problem image ref for customer booking form
+  const problemImageRef = useRef(null)
+
   const { user } = useSelector((state) => state.auth)
-  const canCreateBooking = canAccess(user, [...roleGroups.management, ROLES.CUSTOMER])
-  const canAssignTechnician = canAccess(user, roleGroups.management)
+  // Role check then dynamic permission check for managers
+  const canCreateBooking = canAccess(user, [...roleGroups.management, ROLES.CUSTOMER]) &&
+    canDo(user, 'bookings', 'create')
+  const canAssignTechnician = canAccess(user, roleGroups.management) &&
+    canDo(user, 'bookings', 'manage_bookings')
   const canCompleteBooking = canAccess(user, roleGroups.service)
+  const canDeleteBooking = canAccess(user, roleGroups.management) && canDo(user, 'bookings', 'delete')
+  const canExport = canAccess(user, roleGroups.management) && canDo(user, 'bookings', 'export_csv')
 
   const [form, setForm] = useState({
     customer: '',
@@ -84,17 +102,22 @@ const BookingsPage = () => {
     event.preventDefault()
     setSaving(true)
     try {
-      await bookingAPI.create({
-        ...form,
-        booking_date: new Date(form.booking_date).toISOString(),
-        quote_amount: form.quote_amount || null,
-      })
-      toast.success('Booking created')
+      const imageFile = problemImageRef.current?.files?.[0]
+      if (imageFile) {
+        const fd = new FormData()
+        Object.entries({ ...form, booking_date: new Date(form.booking_date).toISOString(), quote_amount: form.quote_amount || '' }).forEach(([k, v]) => { if (v) fd.append(k, v) })
+        fd.append('problem_image', imageFile)
+        await bookingAPI.create(fd)
+      } else {
+        await bookingAPI.create({ ...form, booking_date: new Date(form.booking_date).toISOString(), quote_amount: form.quote_amount || null })
+      }
+      toast.success('Booking created successfully!')
       setShowForm(false)
+      if (problemImageRef.current) problemImageRef.current.value = ''
       setForm({ customer: '', service: '', booking_date: new Date().toISOString().slice(0, 16), scheduled_date: '', scheduled_time: '', service_address: '', problem_description: '', quote_amount: '' })
       fetchBookings()
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Booking create failed')
+      toast.error(error.response?.data?.detail || error.response?.data?.service?.[0] || 'Booking create failed')
     } finally {
       setSaving(false)
     }
@@ -140,6 +163,37 @@ const BookingsPage = () => {
     }
   }
 
+  const handleCancelBooking = async () => {
+    setCancelling(true)
+    try {
+      await bookingAPI.cancelBooking(cancelTarget.id)
+      toast.success('Booking cancelled')
+      setCancelTarget(null)
+      fetchBookings()
+    } catch {
+      toast.error('Could not cancel booking')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  const handleSubmitReview = async () => {
+    if (!reviewRating) { toast.error('Please select a rating'); return }
+    setSubmittingReview(true)
+    try {
+      await bookingAPI.submitReview(reviewModal.id, reviewRating, reviewText)
+      toast.success('Review submitted!')
+      setReviewModal(null)
+      setReviewRating(0)
+      setReviewText('')
+      fetchBookings()
+    } catch {
+      toast.error('Could not submit review')
+    } finally {
+      setSubmittingReview(false)
+    }
+  }
+
   const statusOptions = [
     { value: '', label: 'All Statuses' },
     { value: 'pending', label: 'Pending' },
@@ -160,16 +214,44 @@ const BookingsPage = () => {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 flex-wrap">
+          {/* Staff: assign technician */}
           {canAssignTechnician && !row.technician && row.status !== 'completed' && row.status !== 'cancelled' && (
             <button onClick={() => openAssignModal(row)} className="rounded-lg bg-sky-50 p-2 text-sky-700 hover:bg-sky-100 transition" title="Assign technician">
               <FiUserCheck size={15} />
             </button>
           )}
+          {/* Staff: mark complete */}
           {canCompleteBooking && row.status !== 'completed' && row.status !== 'cancelled' && (
             <button onClick={() => openCompleteModal(row)} className="rounded-lg bg-emerald-50 p-2 text-emerald-700 hover:bg-emerald-100 transition" title="Complete booking">
               <FiCheck size={15} />
             </button>
+          )}
+          {/* Customer: cancel booking */}
+          {user?.role === ROLES.CUSTOMER && ['pending', 'assigned'].includes(row.status) && (
+            <button
+              onClick={() => setCancelTarget(row)}
+              className="rounded-lg bg-red-50 p-2 text-red-600 hover:bg-red-100 transition"
+              title="Cancel booking"
+            >
+              <FiXCircle size={15} />
+            </button>
+          )}
+          {/* Customer: submit review */}
+          {user?.role === ROLES.CUSTOMER && row.status === 'completed' && !row.rating && (
+            <button
+              onClick={() => { setReviewModal(row); setReviewRating(0); setReviewText('') }}
+              className="rounded-lg bg-yellow-50 p-2 text-yellow-600 hover:bg-yellow-100 transition"
+              title="Leave a review"
+            >
+              <FiStar size={15} />
+            </button>
+          )}
+          {/* Show rating badge if already reviewed */}
+          {user?.role === ROLES.CUSTOMER && row.status === 'completed' && row.rating && (
+            <span className="flex items-center gap-0.5 text-xs text-yellow-600 font-bold px-2 py-1 bg-yellow-50 rounded-lg">
+              {row.rating}★
+            </span>
           )}
         </div>
       ),
@@ -192,17 +274,19 @@ const BookingsPage = () => {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <PageToolbar
-          title="Service Bookings"
-          subtitle="Create bookings, assign technicians, and complete service jobs."
+          title={user?.role === ROLES.CUSTOMER ? 'My Bookings' : 'Service Bookings'}
+          subtitle={user?.role === ROLES.CUSTOMER ? 'Your service booking history.' : 'Create bookings, assign technicians, and complete service jobs.'}
           search={search}
           onSearch={setSearch}
           actionLabel={canCreateBooking ? 'New Booking' : undefined}
           actionIcon={FiPlus}
           onAction={() => setShowForm(true)}
         />
-        <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-          <FiDownload size={14} /> Export CSV
-        </button>
+        {canExport && (
+          <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+            <FiDownload size={14} /> Export CSV
+          </button>
+        )}
       </div>
 
       {/* Status Filter */}
@@ -227,14 +311,16 @@ const BookingsPage = () => {
       {/* New Booking Modal */}
       <Modal title="New Service Booking" open={showForm} onClose={() => setShowForm(false)}>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <FormField label="Customer">
-            <select className={inputClass} value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} required>
-              <option value="">Select customer</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.user?.first_name} {c.user?.last_name} — {c.city}</option>
-              ))}
-            </select>
-          </FormField>
+          {user?.role !== ROLES.CUSTOMER && (
+            <FormField label="Customer">
+              <select className={inputClass} value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} required>
+                <option value="">Select customer</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.user?.first_name} {c.user?.last_name} — {c.city}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
           <FormField label="Service">
             <select className={inputClass} value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} required>
               <option value="">Select service</option>
@@ -263,10 +349,23 @@ const BookingsPage = () => {
               <textarea className={inputClass} rows={3} value={form.problem_description} onChange={(e) => setForm({ ...form, problem_description: e.target.value })} required />
             </FormField>
           </div>
+          {/* Problem Image (optional) */}
+          <div className="md:col-span-2">
+            <FormField label="Problem Photo (Optional)">
+              <label className="flex items-center gap-3 cursor-pointer w-full px-3 py-2.5 border border-dashed border-gray-300 rounded-lg hover:border-yellow-400 transition bg-gray-50">
+                <FiCamera size={16} className="text-gray-400 flex-shrink-0" />
+                <span className="text-sm text-gray-500 truncate flex-1">
+                  {problemImageRef.current?.files?.[0]?.name || 'Click to attach a photo of the problem'}
+                </span>
+                <input ref={problemImageRef} type="file" accept="image/*" className="hidden" onChange={() => setForm({ ...form })} />
+              </label>
+            </FormField>
+          </div>
           <div className="md:col-span-2 flex justify-end gap-3 border-t pt-4">
             <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-50">Cancel</button>
-            <button disabled={saving} className="rounded-lg bg-yellow-400 px-5 py-2 text-sm font-bold text-black disabled:opacity-60 hover:bg-yellow-500 transition">
-              {saving ? 'Saving...' : 'Create Booking'}
+            <button disabled={saving} className="rounded-lg bg-yellow-400 px-5 py-2 text-sm font-bold text-black disabled:opacity-60 hover:bg-yellow-500 transition flex items-center gap-2">
+              {saving && <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />}
+              {saving ? 'Booking...' : 'Create Booking'}
             </button>
           </div>
         </form>

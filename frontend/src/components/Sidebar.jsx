@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { FiLogOut, FiZap } from 'react-icons/fi'
 import { useDispatch, useSelector } from 'react-redux'
 import { logout } from '../redux/store'
-import { canAccess, navItems } from '../routes/rbac'
+import { canAccess, navItems, customerNavItems, ROLES } from '../routes/rbac'
 import { useNavigate } from 'react-router-dom'
 
 const Sidebar = ({ isOpen }) => {
@@ -11,7 +11,9 @@ const Sidebar = ({ isOpen }) => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
-  const menuItems = navItems.filter((item) => canAccess(user, item.roles, item.module))
+  const menuItems = user?.role === ROLES.CUSTOMER
+    ? customerNavItems
+    : navItems.filter((item) => canAccess(user, item.roles, item.module))
 
   const isActive = (path) => location.pathname === path
 

@@ -15,6 +15,7 @@ from apps.authentication.serializers import (
     ChangePasswordSerializer,
 )
 from apps.users.serializers import UserRegisterSerializer, UserDetailSerializer
+from apps.users.models import ActivityLog
 
 User = get_user_model()
 
@@ -49,6 +50,8 @@ class AuthViewSet(viewsets.ViewSet):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             refresh = RefreshToken.for_user(user)
+            ActivityLog.log(user, 'login', 'auth',
+                f"{user.get_full_name()} logged in", request=request)
             return Response({
                 'user': UserDetailSerializer(user).data,
                 'tokens': {
@@ -57,11 +60,13 @@ class AuthViewSet(viewsets.ViewSet):
                 }
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def logout(self, request):
         """Logout user"""
         try:
+            ActivityLog.log(request.user, 'logout', 'auth',
+                f"{request.user.get_full_name()} logged out", request=request)
             refresh_token = request.data.get("refresh")
             token = RefreshToken(refresh_token)
             token.blacklist()

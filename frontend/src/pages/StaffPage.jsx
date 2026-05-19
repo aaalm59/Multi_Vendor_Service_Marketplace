@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { FiCheck, FiPlus, FiEdit2, FiDownload } from 'react-icons/fi'
+import { useSelector } from 'react-redux'
 import DataTable from '../components/DataTable'
 import FormField, { inputClass } from '../components/FormField'
 import Modal from '../components/Modal'
@@ -9,6 +10,7 @@ import PageToolbar from '../components/PageToolbar'
 import StatusBadge from '../components/StatusBadge'
 import { staffAPI, userAPI } from '../services/api'
 import { downloadCSV } from '../utils/exportCSV'
+import { canDo, ROLES } from '../routes/rbac'
 
 const emptyForm = {
   user: '', designation: 'sales_executive', department: 'Sales',
@@ -25,6 +27,11 @@ const StaffPage = () => {
   const [editing, setEditing] = useState(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const { user } = useSelector((state) => state.auth)
+  const canCreate = user?.role === ROLES.ADMIN || canDo(user, 'staff', 'create')
+  const canEdit   = user?.role === ROLES.ADMIN || canDo(user, 'staff', 'update')
+  const canManage = user?.role === ROLES.ADMIN || canDo(user, 'staff', 'manage_staff')
+  const canExportStaff = user?.role === ROLES.ADMIN || canDo(user, 'staff', 'export_csv')
 
   const loadStaff = async () => {
     setLoading(true)
@@ -124,10 +131,20 @@ const StaffPage = () => {
   return (
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3 flex-wrap">
-        <PageToolbar title="Staff Management" subtitle="Attendance, payroll, role responsibility, and internal operations." search={search} onSearch={setSearch} actionLabel="Add Staff" actionIcon={FiPlus} onAction={openCreate} />
-        <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-          <FiDownload size={14} /> Export CSV
-        </button>
+        <PageToolbar
+          title="Staff Management"
+          subtitle="Attendance, payroll, role responsibility, and internal operations."
+          search={search}
+          onSearch={setSearch}
+          actionLabel={canCreate ? "Add Staff" : null}
+          actionIcon={FiPlus}
+          onAction={canCreate ? openCreate : undefined}
+        />
+        {canExportStaff && (
+          <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+            <FiDownload size={14} /> Export CSV
+          </button>
+        )}
       </div>
       <ModuleSummary items={summary} />
       <DataTable columns={columns} rows={staff} loading={loading} />

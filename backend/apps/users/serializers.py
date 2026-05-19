@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.users.models import User, ManagerPermission
+from apps.users.models import User, ManagerPermission, ActivityLog
 from django.contrib.auth.password_validation import validate_password
 
 
@@ -68,3 +68,19 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['username'] = validated_data['email']
         return User.objects.create_user(**validated_data)
+
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    user_role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ActivityLog
+        fields = ['id', 'user', 'user_name', 'user_role', 'action', 'module',
+                  'description', 'object_id', 'ip_address', 'timestamp', 'extra']
+
+    def get_user_name(self, obj):
+        return obj.user.get_full_name() if obj.user else 'System'
+
+    def get_user_role(self, obj):
+        return obj.user.role if obj.user else None

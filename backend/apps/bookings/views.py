@@ -8,6 +8,8 @@ from apps.customers.serializers import CustomerDetailSerializer
 from apps.technicians.views import TechnicianSerializer
 from apps.services.views import ServiceSerializer
 from apps.users.permissions import CUSTOMER, TECHNICIAN, HasRolePermission, MANAGER_ROLES, SERVICE_ROLES
+from apps.users.audit import AuditLoggingMixin
+from apps.users.models import ActivityLog
 
 
 class RepairImageSerializer(ModelSerializer):
@@ -32,7 +34,8 @@ class BookingSerializer(ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'booking_number', 'completion_date', 'created_at', 'updated_at']
 
-class BookingViewSet(viewsets.ModelViewSet):
+class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
+    audit_module = 'bookings'
     """Booking management API"""
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
@@ -48,6 +51,8 @@ class BookingViewSet(viewsets.ModelViewSet):
         'upload_repair_image': MANAGER_ROLES | {TECHNICIAN},
         'add_note': MANAGER_ROLES | {TECHNICIAN},
         'repair_images': MANAGER_ROLES | SERVICE_ROLES,
+        'cancel_booking': MANAGER_ROLES | {CUSTOMER},
+        'submit_review': MANAGER_ROLES | {CUSTOMER},
         'write': MANAGER_ROLES,
     }
     filterset_fields = ['customer', 'technician', 'status']
@@ -85,7 +90,9 @@ class BookingViewSet(viewsets.ModelViewSet):
             booking.technician = technician
             booking.status = 'assigned'
             booking.save()
-            
+            ActivityLog.log(request.user, 'assign', 'bookings',
+                f"Assigned technician {technician.user.get_full_name()} to booking {booking.booking_number}",
+                request=request, object_id=booking.pk)
             serializer = self.get_serializer(booking)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Technician.DoesNotExist:
@@ -117,6 +124,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         if new_status not in allowed_statuses:
             return Response({'error': f'Invalid status. Choose from: {allowed_statuses}'}, status=status.HTTP_400_BAD_REQUEST)
 
+        old_status = booking.status
         booking.status = new_status
         if new_status == 'completed':
             from datetime import datetime
@@ -124,6 +132,9 @@ class BookingViewSet(viewsets.ModelViewSet):
             if request.data.get('final_amount'):
                 booking.final_amount = request.data['final_amount']
         booking.save()
+        ActivityLog.log(request.user, 'status_change', 'bookings',
+            f"Booking {booking.booking_number} status changed: {old_status} → {new_status}",
+            request=request, object_id=booking.pk)
         return Response(self.get_serializer(booking).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='upload_repair_image')
@@ -173,3 +184,46 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking = self.get_object()
         images = RepairImage.objects.filter(booking=booking)
         return Response(RepairImageSerializer(images, many=True, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel_booking(self, request, pk=None):
+        """Customer or manager cancels a booking."""
+        booking = self.get_object()
+        user = request.user
+        if user.role == CUSTOMER:
+            if not hasattr(user, 'customer_profile') or booking.customer != user.customer_profile:
+                return Response({'error': 'Not your booking'}, status=status.HTTP_403_FORBIDDEN)
+            if booking.status not in ('pending', 'assigned'):
+                return Response(
+                    {'error': 'Only pending or assigned bookings can be cancelled'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        old_status = booking.status
+        booking.status = 'cancelled'
+        booking.save()
+        ActivityLog.log(request.user, 'status_change', 'bookings',
+            f"Booking {booking.booking_number} cancelled (was {old_status})",
+            request=request, object_id=booking.pk)
+        return Response(self.get_serializer(booking).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def submit_review(self, request, pk=None):
+        """Customer submits a rating and review for a completed booking."""
+        booking = self.get_object()
+        user = request.user
+        if user.role == CUSTOMER:
+            if not hasattr(user, 'customer_profile') or booking.customer != user.customer_profile:
+                return Response({'error': 'Not your booking'}, status=status.HTTP_403_FORBIDDEN)
+        if booking.status != 'completed':
+            return Response({'error': 'Reviews can only be submitted for completed bookings'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            rating = int(request.data.get('rating', 0))
+        except (ValueError, TypeError):
+            rating = 0
+        if not (1 <= rating <= 5):
+            return Response({'error': 'Rating must be between 1 and 5'}, status=status.HTTP_400_BAD_REQUEST)
+        booking.rating = rating
+        booking.review = request.data.get('review', '').strip()
+        booking.save()
+        return Response(self.get_serializer(booking).data, status=status.HTTP_200_OK)

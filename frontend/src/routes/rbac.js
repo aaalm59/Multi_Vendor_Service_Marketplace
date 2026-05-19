@@ -3,14 +3,18 @@ import {
   FiBarChart2,
   FiBox,
   FiBriefcase,
+  FiCalendar,
   FiDollarSign,
+  FiFileText,
   FiHome,
   FiSettings,
   FiShoppingCart,
   FiTool,
   FiTruck,
+  FiUser,
   FiUsers,
   FiShield,
+  FiClock,
 } from 'react-icons/fi'
 
 export const ROLES = {
@@ -34,7 +38,7 @@ export const roleGroups = {
 // navItems: each item has roles (which roles CAN see it) and optional module (for manager dynamic check)
 export const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: FiHome, roles: roleGroups.all },
-  { path: '/customers', label: 'Customers', icon: FiUsers, roles: roleGroups.customerOps, module: 'customers' },
+  { path: '/customers', label: 'Customers', customerLabel: 'My Profile', icon: FiUsers, roles: roleGroups.customerOps, module: 'customers' },
   { path: '/bookings', label: 'Bookings', icon: FiShoppingCart, roles: [...roleGroups.service, ROLES.CUSTOMER], module: 'bookings' },
   { path: '/services', label: 'Services', icon: FiTool, roles: roleGroups.all, module: 'services' },
   { path: '/inventory', label: 'Inventory', icon: FiBox, roles: [...roleGroups.sales, ROLES.INVENTORY_STAFF], module: 'inventory' },
@@ -47,7 +51,8 @@ export const navItems = [
   { path: '/technician/jobs', label: 'My Jobs', icon: FiTool, roles: [ROLES.TECHNICIAN] },
   { path: '/admin/users', label: 'User Management', icon: FiShield, roles: [ROLES.ADMIN] },
   { path: '/admin/manager-permissions', label: 'Manager Permissions', icon: FiShield, roles: [ROLES.ADMIN] },
-  { path: '/settings', label: 'Settings', icon: FiSettings, roles: roleGroups.management },
+  { path: '/admin/activity-logs', label: 'Activity Logs', icon: FiClock, roles: [ROLES.ADMIN] },
+  { path: '/settings', label: 'Settings', icon: FiSettings, roles: [...roleGroups.management, ROLES.CUSTOMER] },
 ]
 
 /**
@@ -84,5 +89,15 @@ export const canDo = (user, module, action) => {
 
 export const firstRouteForRole = (user) => {
   if (user?.role === ROLES.TECHNICIAN) return '/technician/jobs'
+  if (user?.role === ROLES.CUSTOMER) return '/dashboard'
   return navItems.find((item) => canAccess(user, item.roles, item.module))?.path || '/dashboard'
 }
+
+// Dedicated navigation for customer role — never depends on permission assignments
+export const customerNavItems = [
+  { path: '/dashboard',           label: 'Dashboard',    icon: FiHome },
+  { path: '/bookings',            label: 'My Bookings',  icon: FiCalendar },
+  { path: '/customer/invoices',   label: 'My Invoices',  icon: FiFileText },
+  { path: '/customers',           label: 'My Profile',   icon: FiUser },
+  { path: '/settings',            label: 'Settings',     icon: FiSettings },
+]

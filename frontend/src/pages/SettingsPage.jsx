@@ -73,7 +73,7 @@ const SettingsPage = () => {
       await authAPI.changePassword({
         old_password: passwords.old_password,
         new_password: passwords.new_password,
-        confirm_password: passwords.confirm_password,
+        new_password_confirm: passwords.confirm_password,
       })
       toast.success('Password changed successfully')
       setPasswords({ old_password: '', new_password: '', confirm_password: '' })

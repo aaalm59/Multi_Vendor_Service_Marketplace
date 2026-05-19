@@ -10,6 +10,7 @@ import {
   FiTool,
   FiTruck,
   FiUsers,
+  FiShield,
 } from 'react-icons/fi'
 
 export const ROLES = {
@@ -42,6 +43,7 @@ export const navItems = [
   { path: '/suppliers', label: 'Suppliers', icon: FiTruck, roles: roleGroups.inventory },
   { path: '/expenses', label: 'Expenses', icon: FiDollarSign, roles: roleGroups.management },
   { path: '/reports', label: 'Reports', icon: FiBarChart2, roles: roleGroups.management },
+  { path: '/admin/users', label: 'User Management', icon: FiShield, roles: [ROLES.ADMIN] },
   { path: '/settings', label: 'Settings', icon: FiSettings, roles: roleGroups.management },
 ]
 

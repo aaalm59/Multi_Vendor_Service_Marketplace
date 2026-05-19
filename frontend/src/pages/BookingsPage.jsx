@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { FiCheck, FiPlus, FiUserCheck, FiX } from 'react-icons/fi'
+import { FiCheck, FiPlus, FiUserCheck, FiX, FiDownload } from 'react-icons/fi'
 import { useSelector } from 'react-redux'
 import { bookingAPI, customerAPI, serviceAPI, technicianAPI } from '../services/api'
 import toast from 'react-hot-toast'
@@ -9,6 +9,7 @@ import Modal from '../components/Modal'
 import PageToolbar from '../components/PageToolbar'
 import StatusBadge from '../components/StatusBadge'
 import { canAccess, roleGroups, ROLES } from '../routes/rbac'
+import { downloadCSV } from '../utils/exportCSV'
 
 const BookingsPage = () => {
   const [bookings, setBookings] = useState([])
@@ -175,17 +176,34 @@ const BookingsPage = () => {
     },
   ]
 
+  const handleExport = () => {
+    downloadCSV(bookings, [
+      { key: 'booking_number', label: 'Booking #' },
+      { key: 'customer', label: 'Customer', getValue: (r) => `${r.customer?.user?.first_name || ''} ${r.customer?.user?.last_name || ''}`.trim() },
+      { key: 'service', label: 'Service', getValue: (r) => r.service?.name || '' },
+      { key: 'technician', label: 'Technician', getValue: (r) => `${r.technician?.user?.first_name || ''} ${r.technician?.user?.last_name || ''}`.trim() || 'Unassigned' },
+      { key: 'status', label: 'Status' },
+      { key: 'amount', label: 'Amount', getValue: (r) => r.final_amount || r.quote_amount || 0 },
+    ], 'bookings')
+    toast.success('Bookings CSV downloaded')
+  }
+
   return (
     <div className="space-y-6">
-      <PageToolbar
-        title="Service Bookings"
-        subtitle="Create bookings, assign technicians, and complete service jobs."
-        search={search}
-        onSearch={setSearch}
-        actionLabel={canCreateBooking ? 'New Booking' : undefined}
-        actionIcon={FiPlus}
-        onAction={() => setShowForm(true)}
-      />
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <PageToolbar
+          title="Service Bookings"
+          subtitle="Create bookings, assign technicians, and complete service jobs."
+          search={search}
+          onSearch={setSearch}
+          actionLabel={canCreateBooking ? 'New Booking' : undefined}
+          actionIcon={FiPlus}
+          onAction={() => setShowForm(true)}
+        />
+        <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+          <FiDownload size={14} /> Export CSV
+        </button>
+      </div>
 
       {/* Status Filter */}
       <div className="flex flex-wrap gap-2">

@@ -2,23 +2,25 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
-from apps.users.serializers import UserSerializer, UserDetailSerializer, UserUpdateSerializer
+from apps.users.serializers import UserSerializer, UserDetailSerializer, UserUpdateSerializer, AdminUserUpdateSerializer, AdminUserCreateSerializer
 from apps.users.permissions import IsAdminOrManager
 
 User = get_user_model()
 
 class UserViewSet(viewsets.ModelViewSet):
     """User management API"""
-    queryset = User.objects.all()
+    queryset = User.objects.all().order_by('-created_at')
     serializer_class = UserDetailSerializer
     permission_classes = [IsAdminOrManager]
     filterset_fields = ['role', 'is_active']
     search_fields = ['first_name', 'last_name', 'email', 'phone']
     ordering_fields = ['created_at', 'email', 'role']
-    
+
     def get_serializer_class(self):
-        if self.action == 'update' or self.action == 'partial_update':
-            return UserUpdateSerializer
+        if self.action == 'create':
+            return AdminUserCreateSerializer
+        if self.action in ('update', 'partial_update'):
+            return AdminUserUpdateSerializer
         return UserDetailSerializer
     
     @action(detail=False, methods=['get'])

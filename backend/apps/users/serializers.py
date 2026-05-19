@@ -36,3 +36,20 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['first_name', 'last_name', 'phone', 'bio', 'avatar']
+
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'phone', 'bio', 'role', 'is_active']
+
+class AdminUserCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'email', 'phone', 'role', 'password']
+        extra_kwargs = {'role': {'required': True}}
+
+    def create(self, validated_data):
+        validated_data['username'] = validated_data['email']
+        return User.objects.create_user(**validated_data)

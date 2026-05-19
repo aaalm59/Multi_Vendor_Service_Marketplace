@@ -26,10 +26,18 @@ export const userAPI = {
     apiClient.get('/users/', { params }),
   getById: (id) =>
     apiClient.get(`/users/${id}/`),
+  create: (data) =>
+    apiClient.post('/users/', data),
   update: (id, data) =>
     apiClient.patch(`/users/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/users/${id}/`),
   getByRole: (role) =>
     apiClient.get(`/users/by_role/?role=${role}`),
+  activate: (id) =>
+    apiClient.post(`/users/${id}/activate/`),
+  deactivate: (id) =>
+    apiClient.post(`/users/${id}/deactivate/`),
 }
 
 // Customer APIs

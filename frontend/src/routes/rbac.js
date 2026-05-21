@@ -19,6 +19,7 @@ import {
 
 export const ROLES = {
   ADMIN: 'admin',
+  SOP_USER: 'sop_user',
   MANAGER: 'manager',
   TECHNICIAN: 'technician',
   SALES_STAFF: 'sales_staff',
@@ -28,11 +29,11 @@ export const ROLES = {
 
 export const roleGroups = {
   all: Object.values(ROLES),
-  management: [ROLES.ADMIN, ROLES.MANAGER],
-  sales: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_STAFF],
-  inventory: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
-  service: [ROLES.ADMIN, ROLES.MANAGER, ROLES.TECHNICIAN],
-  customerOps: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_STAFF, ROLES.CUSTOMER],
+  management: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER],
+  sales: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER, ROLES.SALES_STAFF],
+  inventory: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
+  service: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER, ROLES.TECHNICIAN],
+  customerOps: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER, ROLES.SALES_STAFF, ROLES.CUSTOMER],
 }
 
 // navItems: each item has roles (which roles CAN see it) and optional module (for manager dynamic check)

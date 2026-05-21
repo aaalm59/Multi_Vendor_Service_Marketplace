@@ -15,6 +15,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['user_id'] = str(user.id)
         token['email'] = user.email
         token['role'] = user.role
+        token['shop_id'] = str(user.shop_id) if user.shop_id else ''
         token['full_name'] = user.get_full_name()
         return token
 

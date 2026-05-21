@@ -10,6 +10,7 @@ from apps.inventory.models import Inventory, Product, StockMovement
 from apps.inventory.views import ProductSerializer
 from apps.users.permissions import CUSTOMER, HasRolePermission, SALES_ROLES
 from apps.users.audit import AuditLoggingMixin
+from apps.shops.views import TenantScopedViewSetMixin, tenant_queryset
 
 class InvoiceItemSerializer(ModelSerializer):
     product_detail = ProductSerializer(source='product', read_only=True)
@@ -48,6 +49,8 @@ class InvoiceSerializer(ModelSerializer):
 
             for item_data in line_items:
                 product = item_data['product']
+                if invoice.shop_id and product.shop_id and invoice.shop_id != product.shop_id:
+                    raise serializers.ValidationError({'line_items': 'Product belongs to another shop.'})
                 quantity = item_data['quantity']
                 unit_price = item_data.get('unit_price') or product.price
                 tax_rate = item_data.get('tax_rate', product.tax_rate)
@@ -71,6 +74,7 @@ class InvoiceSerializer(ModelSerializer):
                     inventory.quantity_on_hand = max(0, inventory.quantity_on_hand - quantity)
                     inventory.save(update_fields=['quantity_on_hand', 'last_stock_date'])
                 StockMovement.objects.create(
+                    shop=invoice.shop,
                     product=product,
                     movement_type='sale',
                     quantity=quantity,
@@ -90,7 +94,7 @@ class PaymentSerializer(ModelSerializer):
         model = Payment
         fields = '__all__'
 
-class InvoiceViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
+class InvoiceViewSet(TenantScopedViewSetMixin, AuditLoggingMixin, viewsets.ModelViewSet):
     """Invoice/Sales API"""
     audit_module = 'billing'
     queryset = Invoice.objects.all()
@@ -120,7 +124,7 @@ class InvoiceViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         # PDF generation logic would go here
         return Response({'message': 'PDF generation not yet implemented'})
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Payment management API"""
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer

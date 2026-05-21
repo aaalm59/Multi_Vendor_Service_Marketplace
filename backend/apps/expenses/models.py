@@ -5,13 +5,15 @@ import uuid
 
 class ExpenseCategory(models.Model):
     """Expense category"""
-    name = models.CharField(max_length=100, unique=True)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='expense_categories')
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     
     class Meta:
         ordering = ['name']
         verbose_name = 'Category'
         verbose_name_plural = 'Categories'
+        unique_together = ('shop', 'name')
     
     def __str__(self):
         return self.name
@@ -28,6 +30,7 @@ class Expense(BaseModel):
     )
     
     expense_number = models.CharField(max_length=50, unique=True)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='expenses')
     category = models.ForeignKey(ExpenseCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='expenses')
     description = models.TextField()
     amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
@@ -48,6 +51,7 @@ class Expense(BaseModel):
         verbose_name_plural = 'Expenses'
         indexes = [
             models.Index(fields=['expense_date']),
+            models.Index(fields=['shop', 'expense_date']),
             models.Index(fields=['category']),
         ]
     

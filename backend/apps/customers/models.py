@@ -7,6 +7,7 @@ import uuid
 class Customer(BaseModel):
     """Customer model"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer_profile')
+    shop = models.ForeignKey('shops.Shop', on_delete=models.SET_NULL, null=True, blank=True, related_name='customers')
     gst_number = models.CharField(max_length=20, null=True, blank=True)
     shop_name = models.CharField(max_length=255, null=True, blank=True)
     address = models.TextField()
@@ -26,6 +27,7 @@ class Customer(BaseModel):
         verbose_name_plural = 'Customers'
         indexes = [
             models.Index(fields=['user']),
+            models.Index(fields=['shop']),
             models.Index(fields=['city']),
         ]
     

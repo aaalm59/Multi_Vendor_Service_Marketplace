@@ -16,6 +16,7 @@ class Report(BaseModel):
     )
     
     title = models.CharField(max_length=255)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='reports')
     report_type = models.CharField(max_length=50, choices=REPORT_TYPE_CHOICES)
     description = models.TextField(blank=True)
     generated_date = models.DateTimeField(auto_now_add=True)
@@ -35,7 +36,8 @@ class Report(BaseModel):
 
 class DailyMetrics(models.Model):
     """Daily metrics tracking"""
-    date = models.DateField(unique=True)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='daily_metrics')
+    date = models.DateField()
     total_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_profit = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -49,6 +51,7 @@ class DailyMetrics(models.Model):
         ordering = ['-date']
         verbose_name = 'Daily Metrics'
         verbose_name_plural = 'Daily Metrics'
+        unique_together = ('shop', 'date')
     
     def __str__(self):
         return f"Metrics for {self.date}"

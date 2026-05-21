@@ -5,6 +5,7 @@ from rest_framework.serializers import ModelSerializer
 from apps.staff.models import Staff, Attendance
 from apps.users.serializers import UserDetailSerializer
 from apps.users.permissions import HasRolePermission, MANAGER_ROLES
+from apps.shops.views import TenantScopedViewSetMixin
 
 class StaffSerializer(ModelSerializer):
     def to_representation(self, instance):
@@ -21,7 +22,7 @@ class AttendanceSerializer(ModelSerializer):
         model = Attendance
         fields = '__all__'
 
-class StaffViewSet(viewsets.ModelViewSet):
+class StaffViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Staff management API"""
     queryset = Staff.objects.all()
     serializer_class = StaffSerializer
@@ -63,3 +64,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     allowed_roles = MANAGER_ROLES
     filterset_fields = ['staff', 'date', 'status']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser or getattr(user, 'role', None) == 'admin':
+            return queryset
+        if getattr(user, 'shop_id', None):
+            return queryset.filter(staff__shop_id=user.shop_id)
+        return queryset.none()

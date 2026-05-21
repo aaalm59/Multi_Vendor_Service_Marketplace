@@ -5,6 +5,7 @@ from apps.technicians.models import Technician, TechnicianAvailability
 from rest_framework.serializers import ModelSerializer
 from apps.users.serializers import UserDetailSerializer
 from apps.users.permissions import HasRolePermission, MANAGER_ROLES, SERVICE_ROLES
+from apps.shops.views import TenantScopedViewSetMixin
 
 class TechnicianSerializer(ModelSerializer):
     def to_representation(self, instance):
@@ -16,7 +17,7 @@ class TechnicianSerializer(ModelSerializer):
         model = Technician
         fields = '__all__'
 
-class TechnicianViewSet(viewsets.ModelViewSet):
+class TechnicianViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Technician management API"""
     queryset = Technician.objects.all()
     serializer_class = TechnicianSerializer
@@ -42,7 +43,7 @@ class TechnicianViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def available(self, request):
         """Get available technicians"""
-        technicians = Technician.objects.filter(availability_status='available')
+        technicians = self.get_queryset().filter(availability_status='available')
         serializer = self.get_serializer(technicians, many=True)
         return Response(serializer.data)
     
@@ -53,7 +54,7 @@ class TechnicianViewSet(viewsets.ModelViewSet):
         if not spec:
             return Response({'error': 'Specialization required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        technicians = Technician.objects.filter(specialization__icontains=spec)
+        technicians = self.get_queryset().filter(specialization__icontains=spec)
         serializer = self.get_serializer(technicians, many=True)
         return Response(serializer.data)
     

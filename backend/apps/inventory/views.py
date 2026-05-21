@@ -6,6 +6,7 @@ from django.db.models import F
 from apps.inventory.models import Product, ProductCategory, Inventory, StockMovement
 from apps.users.permissions import HasRolePermission, INVENTORY_ROLES, SALES_ROLES
 from apps.users.audit import AuditLoggingMixin
+from apps.shops.views import TenantScopedViewSetMixin
 
 class ProductCategorySerializer(ModelSerializer):
     class Meta:
@@ -40,6 +41,7 @@ class ProductSerializer(ModelSerializer):
         Inventory.objects.get_or_create(
             product=product,
             defaults={
+                'shop': product.shop,
                 'quantity_on_hand': initial_stock,
                 'reorder_level': reorder_level,
                 'reorder_quantity': max(10, initial_stock),
@@ -47,6 +49,7 @@ class ProductSerializer(ModelSerializer):
         )
         if initial_stock:
             StockMovement.objects.create(
+                shop=product.shop,
                 product=product,
                 movement_type='purchase',
                 quantity=initial_stock,
@@ -69,7 +72,7 @@ class StockMovementSerializer(ModelSerializer):
         model = StockMovement
         fields = '__all__'
 
-class ProductCategoryViewSet(viewsets.ModelViewSet):
+class ProductCategoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Product category API"""
     queryset = ProductCategory.objects.all()
     serializer_class = ProductCategorySerializer
@@ -79,7 +82,7 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
         'write': INVENTORY_ROLES,
     }
 
-class ProductViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
+class ProductViewSet(TenantScopedViewSetMixin, AuditLoggingMixin, viewsets.ModelViewSet):
     """Product management API"""
     audit_module = 'inventory'
     queryset = Product.objects.all()
@@ -98,7 +101,7 @@ class ProductViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def low_stock(self, request):
         """Get low stock products"""
-        low_stock_products = Product.objects.filter(
+        low_stock_products = self.get_queryset().filter(
             inventory__quantity_on_hand__lte=F('inventory__reorder_level')
         )
         serializer = self.get_serializer(low_stock_products, many=True)
@@ -112,13 +115,13 @@ class ProductViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             return Response({'error': 'Barcode required'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            product = Product.objects.get(barcode=barcode)
+            product = self.get_queryset().get(barcode=barcode)
             serializer = self.get_serializer(product)
             return Response(serializer.data)
         except Product.DoesNotExist:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
-class InventoryViewSet(viewsets.ModelViewSet):
+class InventoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Inventory management API"""
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
@@ -129,7 +132,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
     }
     filterset_fields = ['product']
 
-class StockMovementViewSet(viewsets.ModelViewSet):
+class StockMovementViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Stock movement API"""
     queryset = StockMovement.objects.all()
     serializer_class = StockMovementSerializer

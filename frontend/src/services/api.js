@@ -40,6 +40,24 @@ export const userAPI = {
     apiClient.post(`/users/${id}/deactivate/`),
 }
 
+// Shop APIs
+export const shopAPI = {
+  getAll: (params) =>
+    apiClient.get('/shops/', { params }),
+  getPublic: () =>
+    apiClient.get('/shops/public/'),
+  getById: (id) =>
+    apiClient.get(`/shops/${id}/`),
+  create: (data) =>
+    apiClient.post('/shops/', data),
+  update: (id, data) =>
+    apiClient.patch(`/shops/${id}/`, data),
+  approve: (id) =>
+    apiClient.post(`/shops/${id}/approve/`),
+  reject: (id) =>
+    apiClient.post(`/shops/${id}/reject/`),
+}
+
 // Customer APIs
 export const customerAPI = {
   getAll: (params) =>

@@ -4,8 +4,9 @@ from rest_framework.response import Response
 from apps.customers.models import Customer
 from apps.customers.serializers import CustomerCreateSerializer, CustomerDetailSerializer, CustomerUpdateSerializer
 from apps.users.permissions import CUSTOMER, HasRolePermission, MANAGER_ROLES, SALES_ROLES
+from apps.shops.views import TenantScopedViewSetMixin
 
-class CustomerViewSet(viewsets.ModelViewSet):
+class CustomerViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Customer management API"""
     queryset = Customer.objects.all()
     serializer_class = CustomerDetailSerializer
@@ -38,7 +39,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if getattr(self.request.user, 'role', None) == CUSTOMER:
-            return queryset.filter(user=self.request.user)
+            return Customer.objects.filter(user=self.request.user)
         return queryset
     
     @action(detail=False, methods=['get'])
@@ -48,7 +49,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         if not city:
             return Response({'error': 'City parameter required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        customers = Customer.objects.filter(city__icontains=city)
+        customers = self.get_queryset().filter(city__icontains=city)
         serializer = self.get_serializer(customers, many=True)
         return Response(serializer.data)
     
@@ -56,7 +57,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def top_customers(self, request):
         """Get top customers by spending"""
         limit = int(request.query_params.get('limit', 10))
-        customers = Customer.objects.order_by('-total_spent')[:limit]
+        customers = self.get_queryset().order_by('-total_spent')[:limit]
         serializer = self.get_serializer(customers, many=True)
         return Response(serializer.data)
 

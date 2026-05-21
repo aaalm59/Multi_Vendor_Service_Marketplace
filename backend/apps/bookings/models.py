@@ -17,6 +17,7 @@ class Booking(BaseModel):
     )
     
     booking_number = models.CharField(max_length=50, unique=True)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='bookings')
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='bookings')
     service = models.ForeignKey(Service, on_delete=models.SET_NULL, null=True, related_name='bookings')
     technician = models.ForeignKey(Technician, on_delete=models.SET_NULL, null=True, blank=True, related_name='bookings')
@@ -45,6 +46,7 @@ class Booking(BaseModel):
         verbose_name_plural = 'Bookings'
         indexes = [
             models.Index(fields=['customer', 'status']),
+            models.Index(fields=['shop', 'status']),
             models.Index(fields=['technician', 'status']),
             models.Index(fields=['booking_date']),
         ]

@@ -13,6 +13,7 @@ API_VERSION = 'v1'
 # API URLs
 api_patterns = [
     path('auth/', include(('apps.authentication.urls', 'auth'), namespace='auth')),
+    path('shops/', include(('apps.shops.urls', 'shops'), namespace='shops')),
     path('users/', include(('apps.users.urls', 'users'), namespace='users')),
     path('customers/', include(('apps.customers.urls', 'customers'), namespace='customers')),
     path('technicians/', include(('apps.technicians.urls', 'technicians'), namespace='technicians')),

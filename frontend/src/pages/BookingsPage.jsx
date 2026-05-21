@@ -8,7 +8,7 @@ const SPEECH_REGION = import.meta.env.VITE_SPEECH_REGION
 
 const WS_BASE = (import.meta.env.VITE_WS_URL || 'ws://localhost:8001').replace(/^http/, 'ws')
 import { useSelector } from 'react-redux'
-import { bookingAPI, customerAPI, serviceAPI, technicianAPI } from '../services/api'
+import { bookingAPI, customerAPI, serviceAPI, shopAPI, technicianAPI } from '../services/api'
 import toast from 'react-hot-toast'
 import DataTable from '../components/DataTable'
 import FormField, { inputClass } from '../components/FormField'
@@ -51,6 +51,7 @@ const BookingsPage = () => {
   const [bookings, setBookings] = useState([])
   const [customers, setCustomers] = useState([])
   const [services, setServices] = useState([])
+  const [shops, setShops] = useState([])
   const [technicians, setTechnicians] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -118,6 +119,7 @@ const BookingsPage = () => {
 
   const [form, setForm] = useState({
     customer: '',
+    shop: '',
     service: '',
     booking_date: new Date().toISOString().slice(0, 16),
     scheduled_date: '',
@@ -135,16 +137,20 @@ const BookingsPage = () => {
     const loadFormData = async () => {
       try {
         // Customers don't need the customer list (backend auto-assigns them)
-        const [customerRes, serviceRes] = await Promise.all([
+        const [customerRes, serviceRes, shopRes] = await Promise.all([
           user?.role !== ROLES.CUSTOMER
             ? customerAPI.getAll({ limit: 100 })
             : Promise.resolve({ data: [] }),
           serviceAPI.getAll({ limit: 100 }),
+          user?.role === ROLES.CUSTOMER
+            ? shopAPI.getPublic()
+            : shopAPI.getAll({ limit: 100 }),
         ])
         if (user?.role !== ROLES.CUSTOMER) {
           setCustomers(customerRes.data?.results || customerRes.data || [])
         }
         setServices(serviceRes.data?.results || serviceRes.data || [])
+        setShops(shopRes.data?.results || shopRes.data || [])
 
         // Pre-populate service_address for customer from their profile
         if (user?.role === ROLES.CUSTOMER) {
@@ -248,6 +254,7 @@ const BookingsPage = () => {
   const buildBookingPayload = () => {
     const payload = {
       service: form.service,
+      shop: form.shop,
       booking_date: new Date(form.booking_date).toISOString(),
       service_address: form.service_address,
       problem_description: form.problem_description,
@@ -256,9 +263,21 @@ const BookingsPage = () => {
     if (form.scheduled_date) payload.scheduled_date = form.scheduled_date
     if (form.scheduled_time) payload.scheduled_time = form.scheduled_time
     if (form.quote_amount)   payload.quote_amount   = form.quote_amount
+    if (!payload.shop) delete payload.shop
     // Staff sets customer explicitly; customer role has it auto-assigned by perform_create
     if (user?.role !== ROLES.CUSTOMER && form.customer) payload.customer = form.customer
     return payload
+  }
+
+  const handleShopChange = async (shopId) => {
+    setForm((prev) => ({ ...prev, shop: shopId, service: '' }))
+    if (user?.role !== ROLES.CUSTOMER || !shopId) return
+    try {
+      const res = await serviceAPI.getAll({ limit: 100, shop: shopId })
+      setServices(res.data?.results || res.data || [])
+    } catch {
+      toast.error('Could not load services for selected shop')
+    }
   }
 
   const handleSubmit = async (event) => {
@@ -278,7 +297,7 @@ const BookingsPage = () => {
       setShowForm(false)
       if (problemImageRef.current) problemImageRef.current.value = ''
       setForm({
-        customer: '', service: '',
+        customer: '', shop: '', service: '',
         booking_date: new Date().toISOString().slice(0, 16),
         scheduled_date: '', scheduled_time: '',
         service_address: '', problem_description: '', quote_amount: '',
@@ -521,6 +540,7 @@ const BookingsPage = () => {
 
   const columns = [
     { key: 'booking_number', label: 'Booking #' },
+    { key: 'shop_name', label: 'Shop', render: (row) => row.shop_name || '-' },
     { key: 'customer', label: 'Customer', render: (row) => `${row.customer?.user?.first_name || ''} ${row.customer?.user?.last_name || ''}`.trim() || '-' },
     { key: 'service', label: 'Service', render: (row) => row.service?.name || '-' },
     {
@@ -644,6 +664,18 @@ const BookingsPage = () => {
                 <option value="">Select customer</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>{c.user?.first_name} {c.user?.last_name} — {c.city}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
+          {(user?.role === ROLES.CUSTOMER || user?.role === ROLES.ADMIN) && (
+            <FormField label="Shop">
+              <select className={inputClass} value={form.shop} onChange={(e) => handleShopChange(e.target.value)} required={user?.role === ROLES.CUSTOMER || user?.role === ROLES.ADMIN}>
+                <option value="">Select shop</option>
+                {shops.map((shop) => (
+                  <option key={shop.id} value={shop.id}>
+                    {shop.name}{shop.city ? ` — ${shop.city}` : ''}
+                  </option>
                 ))}
               </select>
             </FormField>

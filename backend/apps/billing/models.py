@@ -9,6 +9,7 @@ import uuid
 class Invoice(BaseModel):
     """Invoice/Sales model"""
     invoice_number = models.CharField(max_length=50, unique=True)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='invoices')
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
     staff = models.ForeignKey(Staff, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales')
     invoice_date = models.DateTimeField(auto_now_add=True)
@@ -30,6 +31,7 @@ class Invoice(BaseModel):
         verbose_name_plural = 'Invoices'
         indexes = [
             models.Index(fields=['invoice_number']),
+            models.Index(fields=['shop', 'invoice_date']),
             models.Index(fields=['invoice_date']),
         ]
     
@@ -68,6 +70,7 @@ class Payment(models.Model):
     )
     
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='payments')
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='payments')
     amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
     payment_method = models.CharField(max_length=20, choices=[('cash', 'Cash'), ('upi', 'UPI'), ('card', 'Card')])
     status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')

@@ -18,6 +18,7 @@ class User(AbstractUser):
     """Custom user model"""
     ROLE_CHOICES = (
         ('admin', 'Admin'),
+        ('sop_user', 'SOP User / Shop Manager'),
         ('manager', 'Manager'),
         ('technician', 'Technician'),
         ('sales_staff', 'Sales Staff'),
@@ -29,6 +30,14 @@ class User(AbstractUser):
     phone = models.CharField(max_length=15, unique=True, null=True, blank=True)
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='customer')
+    shop = models.ForeignKey(
+        'shops.Shop',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='users',
+        help_text='Tenant shop for SOP users and staff. Super admins/customers may be global.',
+    )
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     bio = models.TextField(blank=True)
     is_verified = models.BooleanField(default=False)
@@ -45,6 +54,7 @@ class User(AbstractUser):
             models.Index(fields=['email']),
             models.Index(fields=['phone']),
             models.Index(fields=['role']),
+            models.Index(fields=['shop', 'role']),
         ]
     
     def __str__(self):

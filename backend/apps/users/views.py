@@ -28,12 +28,31 @@ class UserViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             return AdminUserUpdateSerializer
         return UserDetailSerializer
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser or getattr(user, 'role', None) == ADMIN:
+            return queryset
+        if getattr(user, 'shop_id', None):
+            return queryset.filter(shop_id=user.shop_id)
+        return queryset.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.is_superuser or getattr(user, 'role', None) == ADMIN:
+            serializer.save()
+            return
+        if getattr(user, 'shop_id', None):
+            serializer.save(shop=user.shop)
+            return
+        serializer.save()
+
     @action(detail=False, methods=['get'])
     def by_role(self, request):
         role = request.query_params.get('role')
         if not role:
             return Response({'error': 'Role parameter required'}, status=status.HTTP_400_BAD_REQUEST)
-        users = User.objects.filter(role=role)
+        users = self.get_queryset().filter(role=role)
         serializer = self.get_serializer(users, many=True)
         return Response(serializer.data)
 

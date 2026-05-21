@@ -14,6 +14,7 @@ class Staff(BaseModel):
     )
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='staff_profile')
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='staff')
     designation = models.CharField(max_length=50, choices=DESIGNATION_CHOICES)
     department = models.CharField(max_length=100)
     salary = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
@@ -29,6 +30,9 @@ class Staff(BaseModel):
         ordering = ['-created_at']
         verbose_name = 'Staff'
         verbose_name_plural = 'Staff'
+        indexes = [
+            models.Index(fields=['shop']),
+        ]
     
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.get_designation_display()}"

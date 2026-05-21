@@ -10,6 +10,8 @@ from apps.services.views import ServiceSerializer
 from apps.users.permissions import CUSTOMER, TECHNICIAN, HasRolePermission, MANAGER_ROLES, SERVICE_ROLES
 from apps.users.audit import AuditLoggingMixin
 from apps.users.models import ActivityLog
+from apps.shops.models import Shop
+from apps.shops.views import tenant_queryset
 
 
 class BookingMessageSerializer(ModelSerializer):
@@ -44,6 +46,7 @@ class BookingSerializer(ModelSerializer):
         data['customer'] = CustomerDetailSerializer(instance.customer).data
         data['service'] = ServiceSerializer(instance.service).data if instance.service else None
         data['technician'] = TechnicianSerializer(instance.technician).data if instance.technician else None
+        data['shop_name'] = instance.shop.name if instance.shop else ''
         return data
 
     class Meta:
@@ -60,6 +63,16 @@ class BookingSerializer(ModelSerializer):
             'city': {'required': False, 'allow_blank': True},
             'pincode': {'required': False, 'allow_blank': True},
         }
+
+    def validate(self, attrs):
+        shop = attrs.get('shop') or getattr(self.instance, 'shop', None)
+        service = attrs.get('service') or getattr(self.instance, 'service', None)
+        technician = attrs.get('technician') or getattr(self.instance, 'technician', None)
+        if shop and service and service.shop_id and service.shop_id != shop.id:
+            raise serializers.ValidationError({'service': 'Service belongs to another shop.'})
+        if shop and technician and technician.shop_id and technician.shop_id != shop.id:
+            raise serializers.ValidationError({'technician': 'Technician belongs to another shop.'})
+        return attrs
 
 class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     audit_module = 'bookings'
@@ -94,11 +107,19 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             return queryset.filter(customer__user=user)
         if getattr(user, 'role', None) == 'technician':
             return queryset.filter(technician__user=user)
-        return queryset
+        return tenant_queryset(queryset, user)
 
     def perform_create(self, serializer):
         user = self.request.user
+        shop = None
+        shop_id = self.request.data.get('shop')
         if getattr(user, 'role', None) == CUSTOMER:
+            if not shop_id:
+                raise serializers.ValidationError({'shop': 'Shop selection is required.'})
+            try:
+                shop = Shop.objects.get(id=shop_id, status='approved', is_active=True)
+            except Shop.DoesNotExist:
+                raise serializers.ValidationError({'shop': 'Selected shop is not available.'})
             if not hasattr(user, 'customer_profile'):
                 # Auto-create a minimal Customer profile so the booking can proceed
                 from apps.customers.models import Customer
@@ -107,9 +128,16 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
                 )
             else:
                 profile = user.customer_profile
-            serializer.save(customer=profile)
+            serializer.save(customer=profile, shop=shop)
             return
-        serializer.save()
+        if getattr(user, 'role', None) != 'admin' and not user.is_superuser:
+            shop = getattr(user, 'shop', None)
+        elif shop_id:
+            shop = Shop.objects.filter(id=shop_id).first()
+        service = serializer.validated_data.get('service')
+        if shop and service and service.shop_id and service.shop_id != shop.id:
+            raise serializers.ValidationError({'service': 'Service belongs to another shop.'})
+        serializer.save(shop=shop)
     
     @action(detail=True, methods=['post'])
     def assign_technician(self, request, pk=None):
@@ -123,6 +151,8 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         from apps.technicians.models import Technician
         try:
             technician = Technician.objects.get(id=technician_id)
+            if booking.shop_id and technician.shop_id and booking.shop_id != technician.shop_id:
+                return Response({'error': 'Technician belongs to another shop'}, status=status.HTTP_400_BAD_REQUEST)
             booking.technician = technician
             booking.status = 'assigned'
             booking.save()

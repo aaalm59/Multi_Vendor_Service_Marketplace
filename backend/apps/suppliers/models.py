@@ -5,6 +5,7 @@ import uuid
 
 class Supplier(BaseModel):
     """Supplier model"""
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='suppliers')
     name = models.CharField(max_length=255)
     contact_person = models.CharField(max_length=100)
     email = models.EmailField()
@@ -33,6 +34,7 @@ class Supplier(BaseModel):
 class Purchase(BaseModel):
     """Purchase order model"""
     purchase_number = models.CharField(max_length=50, unique=True)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='purchases')
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name='purchases')
     purchase_date = models.DateField()
     due_date = models.DateField(null=True, blank=True)
@@ -66,6 +68,7 @@ class Purchase(BaseModel):
 
 class PurchaseItem(models.Model):
     """Purchase order items"""
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='purchase_items')
     purchase = models.ForeignKey(Purchase, on_delete=models.CASCADE, related_name='items')
     product_name = models.CharField(max_length=255)
     quantity = models.IntegerField(validators=[MinValueValidator(1)])

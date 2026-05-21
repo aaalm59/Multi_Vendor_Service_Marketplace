@@ -1,3 +1,4 @@
+from django.db.models import Count, Sum
 from django.utils import timezone
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
@@ -71,6 +72,9 @@ class ShopViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         'create': {ADMIN},
         'approve': {ADMIN},
         'reject': {ADMIN},
+        'suspend': {ADMIN},
+        'platform_stats': {ADMIN},
+        'my_shop': {SOP_USER},
         'write': {ADMIN, SOP_USER},
     }
     filterset_fields = ['status', 'city', 'is_active']
@@ -111,3 +115,77 @@ class ShopViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         shop.save(update_fields=['status', 'updated_at'])
         ActivityLog.log(request.user, 'approve', 'shops', f"Rejected shop {shop.name}", request=request, object_id=shop.pk)
         return Response(self.get_serializer(shop).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        shop = self.get_object()
+        shop.status = 'suspended'
+        shop.is_active = False
+        shop.save(update_fields=['status', 'is_active', 'updated_at'])
+        ActivityLog.log(request.user, 'status_change', 'shops', f"Suspended shop {shop.name}", request=request, object_id=shop.pk)
+        return Response(self.get_serializer(shop).data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def platform_stats(self, request):
+        """Super admin — cross-shop aggregate analytics."""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        total_shops = Shop.objects.count()
+        active_shops = Shop.objects.filter(status='approved', is_active=True).count()
+        pending_shops = Shop.objects.filter(status='pending').count()
+
+        from apps.bookings.models import Booking
+        from apps.billing.models import Invoice
+
+        total_bookings = Booking.objects.count()
+        total_revenue = Invoice.objects.filter(is_active=True).aggregate(total=Sum('total_amount'))['total'] or 0
+        total_customers = User.objects.filter(role='customer').count()
+        total_staff = User.objects.filter(role__in=['manager', 'sales_staff', 'inventory_staff', 'technician']).count()
+
+        shop_stats = Shop.objects.annotate(
+            booking_count=Count('bookings'),
+        ).values('id', 'name', 'status', 'city', 'booking_count')
+
+        return Response({
+            'total_shops': total_shops,
+            'active_shops': active_shops,
+            'pending_shops': pending_shops,
+            'total_bookings': total_bookings,
+            'total_revenue': float(total_revenue),
+            'total_customers': total_customers,
+            'total_staff': total_staff,
+            'shop_breakdown': list(shop_stats),
+        })
+
+    @action(detail=False, methods=['get', 'post', 'patch'])
+    def my_shop(self, request):
+        """SOP user — get or create/update their own shop profile."""
+        user = request.user
+        if request.method == 'GET':
+            shop = Shop.objects.filter(owner=user).first()
+            if not shop:
+                return Response({'detail': 'No shop created yet.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(self.get_serializer(shop).data)
+
+        if request.method == 'POST':
+            if Shop.objects.filter(owner=user).exists():
+                return Response({'detail': 'Shop already exists. Use PATCH to update.'}, status=status.HTTP_400_BAD_REQUEST)
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            shop = serializer.save(owner=user, status='pending')
+            # Link the SOP user to this shop
+            user.shop = shop
+            user.save(update_fields=['shop'])
+            ActivityLog.log(user, 'create', 'shops', f"SOP user created shop: {shop.name}", request=request, object_id=shop.pk)
+            return Response(self.get_serializer(shop).data, status=status.HTTP_201_CREATED)
+
+        # PATCH
+        shop = Shop.objects.filter(owner=user).first()
+        if not shop:
+            return Response({'detail': 'No shop found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(shop, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        ActivityLog.log(user, 'update', 'shops', f"Updated shop profile: {shop.name}", request=request, object_id=shop.pk)
+        return Response(self.get_serializer(shop).data)

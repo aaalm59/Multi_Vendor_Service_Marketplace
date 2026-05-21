@@ -27,6 +27,7 @@ class ExpenseCategoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = ExpenseCategory.objects.all()
     serializer_class = ExpenseCategorySerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'expenses'
     allowed_roles = MANAGER_ROLES
 
 class ExpenseViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):

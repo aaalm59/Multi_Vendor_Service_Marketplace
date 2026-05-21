@@ -30,6 +30,8 @@ class Shop(BaseModel):
     city = models.CharField(max_length=100, blank=True)
     state = models.CharField(max_length=100, blank=True)
     pincode = models.CharField(max_length=10, blank=True)
+    gst_number = models.CharField(max_length=20, blank=True)
+    shop_logo = models.ImageField(upload_to='shop_logos/', null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

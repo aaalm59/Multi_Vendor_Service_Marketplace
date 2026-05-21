@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { FiSave, FiUser, FiLock, FiShield, FiEye, FiEyeOff, FiCheck } from 'react-icons/fi'
 import { useSelector, useDispatch } from 'react-redux'
 import { setUser } from '../redux/store'
-import { userAPI, authAPI } from '../services/api'
+import { authAPI } from '../services/api'
 import toast from 'react-hot-toast'
 
 const SectionCard = ({ title, icon: Icon, children }) => (
@@ -46,7 +46,7 @@ const SettingsPage = () => {
     e.preventDefault()
     setSavingProfile(true)
     try {
-      const response = await userAPI.update(user.id, profile)
+      const response = await authAPI.updateMe(profile)
       dispatch(setUser({ ...user, ...response.data }))
       setProfileSaved(true)
       toast.success('Profile updated successfully')

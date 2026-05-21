@@ -9,7 +9,7 @@ import ModuleSummary from '../components/ModuleSummary'
 import PageToolbar from '../components/PageToolbar'
 import StatusBadge from '../components/StatusBadge'
 import { technicianAPI, userAPI } from '../services/api'
-import { canAccess, roleGroups } from '../routes/rbac'
+import { canAccess, canDo, roleGroups } from '../routes/rbac'
 import { downloadCSV } from '../utils/exportCSV'
 
 const emptyForm = { user: '', specialization: '', experience_years: '0', hourly_rate: '', availability_status: 'available' }
@@ -23,7 +23,9 @@ const TechniciansPage = () => {
   const [editing, setEditing] = useState(null)
   const [saving, setSaving] = useState(false)
   const { user } = useSelector((state) => state.auth)
-  const canManage = canAccess(user, roleGroups.management)
+  const canManage = canAccess(user, roleGroups.management, 'technicians') &&
+    (canDo(user, 'technicians', 'create') || canDo(user, 'technicians', 'update'))
+  const canExport = canAccess(user, roleGroups.management, 'technicians') && canDo(user, 'technicians', 'export_csv')
   const [form, setForm] = useState(emptyForm)
 
   const loadTechnicians = async () => {
@@ -107,9 +109,11 @@ const TechniciansPage = () => {
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <PageToolbar title="Technician Management" subtitle="Track specializations, workload, availability, and field performance." search={search} onSearch={setSearch} actionLabel={canManage ? 'Add Technician' : undefined} actionIcon={FiPlus} onAction={openCreate} />
-        <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-          <FiDownload size={14} /> Export CSV
-        </button>
+        {canExport && (
+          <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+            <FiDownload size={14} /> Export CSV
+          </button>
+        )}
       </div>
       <ModuleSummary items={summary} />
       <DataTable columns={columns} rows={technicians} loading={loading} />

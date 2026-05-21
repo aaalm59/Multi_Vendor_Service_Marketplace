@@ -1,6 +1,8 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework import serializers
+from django.db.models import Q
 from apps.customers.models import Customer
 from apps.customers.serializers import CustomerCreateSerializer, CustomerDetailSerializer, CustomerUpdateSerializer
 from apps.users.permissions import CUSTOMER, HasRolePermission, MANAGER_ROLES, SALES_ROLES
@@ -37,10 +39,24 @@ class CustomerViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'total_spent', 'city']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = Customer.objects.all()
         if getattr(self.request.user, 'role', None) == CUSTOMER:
-            return Customer.objects.filter(user=self.request.user)
-        return queryset
+            return queryset.filter(user=self.request.user)
+        if self.request.user.is_superuser or getattr(self.request.user, 'role', None) == 'admin':
+            return queryset
+        shop_id = getattr(self.request.user, 'shop_id', None)
+        if shop_id:
+            return queryset.filter(Q(shop_id=shop_id) | Q(user__shop_id=shop_id)).distinct()
+        return queryset.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.is_superuser or getattr(user, 'role', None) == 'admin':
+            serializer.save()
+            return
+        if not getattr(user, 'shop_id', None):
+            raise serializers.ValidationError({'shop': 'Manager/staff user is not assigned to any shop.'})
+        serializer.save(shop=user.shop)
     
     @action(detail=False, methods=['get'])
     def by_city(self, request):

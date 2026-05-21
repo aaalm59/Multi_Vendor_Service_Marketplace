@@ -22,6 +22,8 @@ import ExpensesPage from './pages/ExpensesPage'
 import ServicesPage from './pages/ServicesPage'
 import SettingsPage from './pages/SettingsPage'
 import AdminUsersPage from './pages/admin/UsersPage'
+import ShopsPage from './pages/admin/ShopsPage'
+import ShopSetupPage from './pages/ShopSetupPage'
 import ManagerPermissionsPage from './pages/admin/ManagerPermissionsPage'
 import ActivityLogsPage from './pages/admin/ActivityLogsPage'
 import TechnicianJobsPage from './technician/TechnicianJobsPage'
@@ -32,13 +34,13 @@ import { CallProvider } from './context/CallContext'
 // Layouts
 import MainLayout from './layouts/MainLayout'
 
-const ProtectedRoute = ({ children, roles }) => {
+const ProtectedRoute = ({ children, roles, module }) => {
   const { token, user } = useAuth()
   if (!token) return <Navigate to="/login" />
   if (roles?.length && !user) {
     return <div className="flex min-h-screen items-center justify-center bg-gray-100 text-sm font-semibold text-gray-600">Loading permissions...</div>
   }
-  if (roles?.length && user?.role && !canAccess(user, roles)) {
+  if (roles?.length && user?.role && !canAccess(user, roles, module)) {
     return <Navigate to={firstRouteForRole(user)} />
   }
   return children
@@ -60,6 +62,7 @@ const AuthBootstrap = () => {
 
 const AppRoutes = () => {
   const routeRoles = Object.fromEntries(navItems.map((item) => [item.path, item.roles]))
+  const routeModules = Object.fromEntries(navItems.map((item) => [item.path, item.module]))
 
   return (
     <Routes>
@@ -74,19 +77,21 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <MainLayout>
               <Routes>
-                <Route path="/dashboard" element={<ProtectedRoute roles={routeRoles['/dashboard']}><DashboardPage /></ProtectedRoute>} />
-                <Route path="/customers" element={<ProtectedRoute roles={routeRoles['/customers']}><CustomersPage /></ProtectedRoute>} />
-                <Route path="/bookings" element={<ProtectedRoute roles={routeRoles['/bookings']}><BookingsPage /></ProtectedRoute>} />
-                <Route path="/services" element={<ProtectedRoute roles={routeRoles['/services']}><ServicesPage /></ProtectedRoute>} />
-                <Route path="/inventory" element={<ProtectedRoute roles={routeRoles['/inventory']}><InventoryPage /></ProtectedRoute>} />
-                <Route path="/billing" element={<ProtectedRoute roles={routeRoles['/billing']}><BillingPage /></ProtectedRoute>} />
-                <Route path="/staff" element={<ProtectedRoute roles={routeRoles['/staff']}><StaffPage /></ProtectedRoute>} />
-                <Route path="/technicians" element={<ProtectedRoute roles={routeRoles['/technicians']}><TechniciansPage /></ProtectedRoute>} />
-                <Route path="/suppliers" element={<ProtectedRoute roles={routeRoles['/suppliers']}><SuppliersPage /></ProtectedRoute>} />
-                <Route path="/expenses" element={<ProtectedRoute roles={routeRoles['/expenses']}><ExpensesPage /></ProtectedRoute>} />
-                <Route path="/reports" element={<ProtectedRoute roles={routeRoles['/reports']}><ReportsPage /></ProtectedRoute>} />
+                <Route path="/dashboard" element={<ProtectedRoute roles={routeRoles['/dashboard']} module={routeModules['/dashboard']}><DashboardPage /></ProtectedRoute>} />
+                <Route path="/customers" element={<ProtectedRoute roles={routeRoles['/customers']} module={routeModules['/customers']}><CustomersPage /></ProtectedRoute>} />
+                <Route path="/bookings" element={<ProtectedRoute roles={routeRoles['/bookings']} module={routeModules['/bookings']}><BookingsPage /></ProtectedRoute>} />
+                <Route path="/services" element={<ProtectedRoute roles={routeRoles['/services']} module={routeModules['/services']}><ServicesPage /></ProtectedRoute>} />
+                <Route path="/inventory" element={<ProtectedRoute roles={routeRoles['/inventory']} module={routeModules['/inventory']}><InventoryPage /></ProtectedRoute>} />
+                <Route path="/billing" element={<ProtectedRoute roles={routeRoles['/billing']} module={routeModules['/billing']}><BillingPage /></ProtectedRoute>} />
+                <Route path="/staff" element={<ProtectedRoute roles={routeRoles['/staff']} module={routeModules['/staff']}><StaffPage /></ProtectedRoute>} />
+                <Route path="/technicians" element={<ProtectedRoute roles={routeRoles['/technicians']} module={routeModules['/technicians']}><TechniciansPage /></ProtectedRoute>} />
+                <Route path="/suppliers" element={<ProtectedRoute roles={routeRoles['/suppliers']} module={routeModules['/suppliers']}><SuppliersPage /></ProtectedRoute>} />
+                <Route path="/expenses" element={<ProtectedRoute roles={routeRoles['/expenses']} module={routeModules['/expenses']}><ExpensesPage /></ProtectedRoute>} />
+                <Route path="/reports" element={<ProtectedRoute roles={routeRoles['/reports']} module={routeModules['/reports']}><ReportsPage /></ProtectedRoute>} />
+                <Route path="/admin/shops" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ShopsPage /></ProtectedRoute>} />
+                <Route path="/shop-setup" element={<ProtectedRoute roles={[ROLES.SOP_USER]}><ShopSetupPage /></ProtectedRoute>} />
                 <Route path="/admin/users" element={<ProtectedRoute roles={[ROLES.ADMIN]}><AdminUsersPage /></ProtectedRoute>} />
-                <Route path="/admin/manager-permissions" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ManagerPermissionsPage /></ProtectedRoute>} />
+                <Route path="/admin/manager-permissions" element={<ProtectedRoute roles={[ROLES.ADMIN, ROLES.SOP_USER]}><ManagerPermissionsPage /></ProtectedRoute>} />
                 <Route path="/admin/activity-logs" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ActivityLogsPage /></ProtectedRoute>} />
                 <Route path="/technician/jobs" element={<ProtectedRoute roles={[ROLES.TECHNICIAN]}><TechnicianJobsPage /></ProtectedRoute>} />
                 <Route path="/customer/invoices" element={<ProtectedRoute roles={[ROLES.CUSTOMER]}><CustomerInvoicesPage /></ProtectedRoute>} />

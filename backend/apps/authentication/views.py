@@ -14,7 +14,7 @@ from apps.authentication.serializers import (
     PasswordResetConfirmSerializer,
     ChangePasswordSerializer,
 )
-from apps.users.serializers import UserRegisterSerializer, UserDetailSerializer
+from apps.users.serializers import UserRegisterSerializer, UserDetailSerializer, UserUpdateSerializer
 from apps.users.models import ActivityLog
 
 User = get_user_model()
@@ -125,7 +125,12 @@ class AuthViewSet(viewsets.ViewSet):
         user.save(update_fields=['password'])
         return Response({'message': 'Password reset successfully.'})
     
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[permissions.IsAuthenticated])
     def me(self, request):
-        """Get current user"""
+        """Get current user or update own profile fields."""
+        if request.method == 'PATCH':
+            serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(UserDetailSerializer(request.user).data, status=status.HTTP_200_OK)
         return Response(UserDetailSerializer(request.user).data, status=status.HTTP_200_OK)

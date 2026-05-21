@@ -8,7 +8,7 @@ import FormField, { inputClass } from '../components/FormField'
 import Modal from '../components/Modal'
 import PageToolbar from '../components/PageToolbar'
 import StatusBadge from '../components/StatusBadge'
-import { canAccess, roleGroups } from '../routes/rbac'
+import { canAccess, canDo, roleGroups } from '../routes/rbac'
 import { downloadCSV } from '../utils/exportCSV'
 
 const emptyForm = {
@@ -26,7 +26,9 @@ const InventoryPage = () => {
   const [editing, setEditing] = useState(null)
   const [saving, setSaving] = useState(false)
   const { user } = useSelector((state) => state.auth)
-  const canManage = canAccess(user, roleGroups.inventory)
+  const canManage = canAccess(user, roleGroups.inventory, 'inventory') &&
+    (canDo(user, 'inventory', 'create') || canDo(user, 'inventory', 'update') || canDo(user, 'inventory', 'delete'))
+  const canExport = canAccess(user, roleGroups.inventory, 'inventory') && canDo(user, 'inventory', 'export_csv')
   const [form, setForm] = useState(emptyForm)
 
   useEffect(() => { fetchProducts() }, [search])
@@ -140,9 +142,11 @@ const InventoryPage = () => {
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <PageToolbar title="Inventory" subtitle="Products, barcodes, stock levels, GST, and low-stock alerts." search={search} onSearch={setSearch} actionLabel={canManage ? 'Add Product' : undefined} actionIcon={FiPlus} onAction={openCreate} />
-        <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-          <FiDownload size={14} /> Export CSV
-        </button>
+        {canExport && (
+          <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+            <FiDownload size={14} /> Export CSV
+          </button>
+        )}
       </div>
 
       {lowStockCount > 0 && (

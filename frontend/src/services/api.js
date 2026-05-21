@@ -10,6 +10,8 @@ export const authAPI = {
     apiClient.post('/auth/logout/', { refresh: refreshToken }),
   getCurrentUser: () =>
     apiClient.get('/auth/me/'),
+  updateMe: (data) =>
+    apiClient.patch('/auth/me/', data),
   changePassword: (data) =>
     apiClient.post('/auth/change_password/', data),
   passwordReset: (email) =>
@@ -56,6 +58,20 @@ export const shopAPI = {
     apiClient.post(`/shops/${id}/approve/`),
   reject: (id) =>
     apiClient.post(`/shops/${id}/reject/`),
+  suspend: (id) =>
+    apiClient.post(`/shops/${id}/suspend/`),
+  platformStats: () =>
+    apiClient.get('/shops/platform_stats/'),
+  myShop: () =>
+    apiClient.get('/shops/my_shop/'),
+  createMyShop: (data) =>
+    apiClient.post('/shops/my_shop/', data, {
+      headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
+    }),
+  updateMyShop: (data) =>
+    apiClient.patch('/shops/my_shop/', data, {
+      headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
+    }),
 }
 
 // Customer APIs

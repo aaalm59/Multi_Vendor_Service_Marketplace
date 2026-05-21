@@ -62,6 +62,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'staff'
     allowed_roles = MANAGER_ROLES
     filterset_fields = ['staff', 'date', 'status']
 

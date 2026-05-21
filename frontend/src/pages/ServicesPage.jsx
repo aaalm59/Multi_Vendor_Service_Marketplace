@@ -9,7 +9,7 @@ import ModuleSummary from '../components/ModuleSummary'
 import PageToolbar from '../components/PageToolbar'
 import StatusBadge from '../components/StatusBadge'
 import { serviceAPI } from '../services/api'
-import { canAccess, roleGroups } from '../routes/rbac'
+import { canAccess, canDo, roleGroups } from '../routes/rbac'
 import { downloadCSV } from '../utils/exportCSV'
 
 const emptyForm = { name: '', description: '', base_price: '', estimated_duration: '60', is_available: true }
@@ -22,7 +22,9 @@ const ServicesPage = () => {
   const [editing, setEditing] = useState(null)
   const [saving, setSaving] = useState(false)
   const { user } = useSelector((state) => state.auth)
-  const canManage = canAccess(user, roleGroups.management)
+  const canManage = canAccess(user, roleGroups.management, 'services') &&
+    (canDo(user, 'services', 'create') || canDo(user, 'services', 'update') || canDo(user, 'services', 'delete'))
+  const canExport = canAccess(user, roleGroups.management, 'services') && canDo(user, 'services', 'export_csv')
   const [form, setForm] = useState(emptyForm)
 
   const loadServices = async () => {
@@ -99,9 +101,11 @@ const ServicesPage = () => {
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <PageToolbar title="Service Catalog" subtitle="Bookable electric repair services with pricing and duration." search={search} onSearch={setSearch} actionLabel={canManage ? 'Add Service' : undefined} actionIcon={FiPlus} onAction={openCreate} />
-        <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-          <FiDownload size={14} /> Export CSV
-        </button>
+        {canExport && (
+          <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+            <FiDownload size={14} /> Export CSV
+          </button>
+        )}
       </div>
       <ModuleSummary items={summary} />
       <DataTable columns={columns} rows={services} loading={loading} />

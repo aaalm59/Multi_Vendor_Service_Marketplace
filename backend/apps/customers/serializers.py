@@ -46,6 +46,7 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        shop = validated_data.get('shop')
         user_data = {
             'first_name': validated_data.pop('first_name'),
             'last_name': validated_data.pop('last_name', ''),
@@ -54,6 +55,8 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
             'role': 'customer',
             'username': None,
         }
+        if shop:
+            user_data['shop'] = shop
         user_data['username'] = user_data['email']
         user, created = User.objects.get_or_create(
             email=user_data['email'],
@@ -64,4 +67,7 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
         if created:
             user.set_unusable_password()
             user.save(update_fields=['password'])
+        elif shop and not user.shop_id:
+            user.shop = shop
+            user.save(update_fields=['shop'])
         return Customer.objects.create(user=user, **validated_data)

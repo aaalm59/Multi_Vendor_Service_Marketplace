@@ -77,6 +77,7 @@ class ProductCategoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = ProductCategory.objects.all()
     serializer_class = ProductCategorySerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'inventory'
     allowed_roles_by_action = {
         'read': SALES_ROLES | INVENTORY_ROLES,
         'write': INVENTORY_ROLES,
@@ -126,6 +127,7 @@ class InventoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'inventory'
     allowed_roles_by_action = {
         'read': SALES_ROLES | INVENTORY_ROLES,
         'write': INVENTORY_ROLES,
@@ -137,6 +139,7 @@ class StockMovementViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = StockMovement.objects.all()
     serializer_class = StockMovementSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'inventory'
     allowed_roles_by_action = {
         'read': SALES_ROLES | INVENTORY_ROLES,
         'write': INVENTORY_ROLES,

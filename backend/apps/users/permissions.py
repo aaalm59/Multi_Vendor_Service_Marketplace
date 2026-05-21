@@ -16,6 +16,9 @@ INVENTORY_ROLES = {ADMIN, SOP_USER, MANAGER, INVENTORY_STAFF}
 SERVICE_ROLES = {ADMIN, SOP_USER, MANAGER, TECHNICIAN}
 ALL_AUTH_ROLES = {ADMIN, MANAGER, TECHNICIAN, SALES_STAFF, INVENTORY_STAFF, CUSTOMER}
 ALL_AUTH_ROLES = ALL_AUTH_ROLES | {SOP_USER}
+DYNAMIC_PERMISSION_ROLES = {MANAGER, SALES_STAFF, INVENTORY_STAFF}
+PERMISSION_ASSIGNER_ROLES = {ADMIN, SOP_USER}
+PERMISSION_ASSIGNABLE_ROLES = {MANAGER, SALES_STAFF, INVENTORY_STAFF}
 
 # Maps HTTP method / DRF action to ManagerPermission.action values
 _SAFE_ACTIONS = {'list', 'retrieve', 'available', 'by_role', 'by_city', 'by_specialization',
@@ -31,6 +34,8 @@ def _manager_action_for_request(request, view):
         return 'manage_staff'
     if drf_action in ('assign_technician',):
         return 'manage_bookings'
+    if drf_action and drf_action.startswith('approve'):
+        return 'approve'
     if request.method in SAFE_METHODS or drf_action in _SAFE_ACTIONS:
         return 'view'
     if drf_action == 'create' or request.method == 'POST':
@@ -80,8 +85,8 @@ class HasRolePermission(BasePermission):
         if user_role not in allowed_roles:
             return False
 
-        # For managers, additionally enforce dynamic module permissions
-        if user_role == MANAGER:
+        # Shop owners/admins pass by role; staff roles need assigned module permissions.
+        if user_role in DYNAMIC_PERMISSION_ROLES:
             module = getattr(view, 'permission_module', None)
             if module:
                 needed_action = _manager_action_for_request(request, view)

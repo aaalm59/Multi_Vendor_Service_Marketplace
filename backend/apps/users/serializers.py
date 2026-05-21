@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.users.models import User, ManagerPermission, ActivityLog
+from apps.users.permissions import PERMISSION_ASSIGNABLE_ROLES
 from django.contrib.auth.password_validation import validate_password
 
 
@@ -24,7 +25,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'shop', 'shop_name', 'avatar', 'bio', 'is_verified', 'created_at', 'updated_at', 'permissions']
 
     def get_permissions(self, obj):
-        if obj.role == 'manager':
+        if obj.role in PERMISSION_ASSIGNABLE_ROLES:
             return ManagerPermissionSerializer(obj.manager_permissions.all(), many=True).data
         return []
 
@@ -61,7 +62,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'phone', 'bio', 'avatar', 'shop']
+        fields = ['first_name', 'last_name', 'phone', 'bio', 'avatar']
 
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
     class Meta:

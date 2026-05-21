@@ -39,6 +39,7 @@ class PurchaseViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'suppliers'
     allowed_roles = INVENTORY_ROLES
     filterset_fields = ['supplier', 'status']
     ordering_fields = ['purchase_date', 'total_amount']

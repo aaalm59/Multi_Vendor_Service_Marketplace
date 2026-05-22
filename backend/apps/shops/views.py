@@ -90,7 +90,30 @@ class ShopViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             return queryset.filter(status='approved', is_active=True)
         if getattr(user, 'shop_id', None):
             return queryset.filter(id=user.shop_id)
+        # SOP user without shop yet: show shops they own so they can set up
+        if getattr(user, 'role', None) == SOP_USER:
+            return queryset.filter(owner=user)
         return queryset.none()
+
+    @staticmethod
+    def _sync_owner_shop(shop):
+        """When a shop is created/updated with an owner, link that owner to this shop."""
+        if shop.owner and shop.owner.shop_id != shop.id:
+            shop.owner.shop = shop
+            shop.owner.save(update_fields=['shop'])
+
+    def perform_create(self, serializer):
+        shop = serializer.save()
+        self._sync_owner_shop(shop)
+
+    def perform_update(self, serializer):
+        old_owner = serializer.instance.owner
+        shop = serializer.save()
+        # Clear old owner's shop link if owner changed
+        if old_owner and old_owner != shop.owner and old_owner.shop_id == shop.id:
+            old_owner.shop = None
+            old_owner.save(update_fields=['shop'])
+        self._sync_owner_shop(shop)
 
     @action(detail=False, methods=['get'], permission_classes=[HasRolePermission])
     def public(self, request):

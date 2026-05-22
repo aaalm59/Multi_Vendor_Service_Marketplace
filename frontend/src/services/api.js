@@ -114,6 +114,8 @@ export const bookingAPI = {
     apiClient.post(`/bookings/${id}/update_status/`, { status: statusVal, ...extra }),
   cancelBooking: (id, reason) =>
     apiClient.post(`/bookings/${id}/cancel_booking/`, { reason }),
+  selfAssign: (id) =>
+    apiClient.post(`/bookings/${id}/self_assign/`),
   submitReview: (id, rating, review = '') =>
     apiClient.post(`/bookings/${id}/submit_review/`, { rating, review }),
   uploadRepairImage: (id, formData) =>

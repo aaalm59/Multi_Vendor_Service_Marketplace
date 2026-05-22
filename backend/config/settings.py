@@ -21,6 +21,11 @@ def env(key, default=None, cast=str):
     return value
 
 
+def env_list(key, default=''):
+    value = env(key, default=default)
+    return [item.strip() for item in str(value).split(',') if item.strip()]
+
+
 def load_env_file(path):
     if not path.exists():
         return
@@ -40,7 +45,7 @@ SECRET_KEY = env('SECRET_KEY', default='django-insecure-your-secret-key-here')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = env('ALLOWED_HOSTS', default='localhost,127.0.0.1,backend,0.0.0.0').split(',')
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', default='localhost,127.0.0.1,backend,0.0.0.0')
 
 # Application definition
 INSTALLED_APPS = [
@@ -166,6 +171,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 STATICFILES_DIRS = [path for path in [os.path.join(BASE_DIR, 'staticfiles')] if os.path.isdir(path)]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files
 MEDIA_URL = '/media/'
@@ -211,13 +217,12 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
-# CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-]
+# CORS / CSRF Configuration
+CORS_ALLOWED_ORIGINS = env_list(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000',
+)
+CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS', default='')
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -234,6 +239,17 @@ CORS_ALLOW_HEADERS = [
 # File Upload
 DATA_UPLOAD_MAX_MEMORY_SIZE = env('MAX_UPLOAD_SIZE', default=52428800, cast=int)
 FILE_UPLOAD_MAX_MEMORY_SIZE = env('MAX_UPLOAD_SIZE', default=52428800, cast=int)
+
+# Production security. Keep these env-driven so local/dev deployments can opt out safely.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = env('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)
+SESSION_COOKIE_SECURE = env('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
+CSRF_COOKIE_SECURE = env('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
+SECURE_HSTS_SECONDS = env('SECURE_HSTS_SECONDS', default=31536000 if not DEBUG else 0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=not DEBUG, cast=bool)
+SECURE_HSTS_PRELOAD = env('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
 
 LOG_DIR = BASE_DIR.parent / 'logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,11 @@ import Cookies from 'js-cookie'
 import toast from 'react-hot-toast'
 import BookingCall, { useRingtone } from '../components/BookingCall'
 
-const WS_BASE = (import.meta.env.VITE_WS_URL || 'ws://localhost:8001').replace(/^http/, 'ws')
+const defaultWsBase =
+  typeof window !== 'undefined'
+    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
+    : ''
+const WS_BASE = (import.meta.env.VITE_WS_URL || defaultWsBase).replace(/^http/, 'ws')
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },

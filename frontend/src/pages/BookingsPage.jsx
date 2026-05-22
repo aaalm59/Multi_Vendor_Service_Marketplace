@@ -6,7 +6,11 @@ import { useCallContext } from '../context/CallContext'
 const SPEECH_KEY = import.meta.env.VITE_SPEECH_KEY
 const SPEECH_REGION = import.meta.env.VITE_SPEECH_REGION
 
-const WS_BASE = (import.meta.env.VITE_WS_URL || 'ws://localhost:8001').replace(/^http/, 'ws')
+const defaultWsBase =
+  typeof window !== 'undefined'
+    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
+    : ''
+const WS_BASE = (import.meta.env.VITE_WS_URL || defaultWsBase).replace(/^http/, 'ws')
 import { useSelector } from 'react-redux'
 import { bookingAPI, customerAPI, serviceAPI, technicianAPI } from '../services/api'
 import toast from 'react-hot-toast'

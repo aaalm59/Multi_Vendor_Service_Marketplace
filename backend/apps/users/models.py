@@ -41,6 +41,9 @@ class User(AbstractUser):
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     bio = models.TextField(blank=True)
     is_verified = models.BooleanField(default=False)
+    face_encoding = models.JSONField(null=True, blank=True)
+    face_registered = models.BooleanField(default=False)
+    last_face_login = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     USERNAME_FIELD = 'email'

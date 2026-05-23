@@ -1,3 +1,5 @@
+import math
+from django.utils import timezone
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -18,6 +20,11 @@ from apps.users.serializers import UserRegisterSerializer, UserDetailSerializer,
 from apps.users.models import ActivityLog
 
 User = get_user_model()
+
+FACE_MATCH_THRESHOLD = 0.6
+
+def _euclidean_distance(v1, v2):
+    return math.sqrt(sum((a - b) ** 2 for a, b in zip(v1, v2)))
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Custom token obtain pair view"""
@@ -134,3 +141,48 @@ class AuthViewSet(viewsets.ViewSet):
             serializer.save()
             return Response(UserDetailSerializer(request.user).data, status=status.HTTP_200_OK)
         return Response(UserDetailSerializer(request.user).data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def face_register(self, request):
+        """Store face descriptor for the authenticated user."""
+        descriptor = request.data.get('descriptor')
+        if not descriptor or not isinstance(descriptor, list) or len(descriptor) != 128:
+            return Response({'error': 'Valid 128-element face descriptor required.'}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        user.face_encoding = descriptor
+        user.face_registered = True
+        user.save(update_fields=['face_encoding', 'face_registered'])
+        ActivityLog.log(user, 'update', 'auth', 'Face registered', request=request)
+        return Response({'message': 'Face registered successfully.'})
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def face_login(self, request):
+        """Match face descriptor against all registered users and return JWT if matched."""
+        descriptor = request.data.get('descriptor')
+        if not descriptor or not isinstance(descriptor, list) or len(descriptor) != 128:
+            return Response({'error': 'Valid 128-element face descriptor required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        candidates = User.objects.filter(face_registered=True, is_active=True).exclude(face_encoding__isnull=True)
+        best_user = None
+        best_dist = float('inf')
+        for candidate in candidates:
+            try:
+                dist = _euclidean_distance(descriptor, candidate.face_encoding)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_user = candidate
+            except Exception:
+                continue
+
+        if best_user is None or best_dist > FACE_MATCH_THRESHOLD:
+            return Response({'error': 'Face not recognised. Please try again or use password login.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        best_user.last_face_login = timezone.now()
+        best_user.save(update_fields=['last_face_login'])
+        refresh = RefreshToken.for_user(best_user)
+        ActivityLog.log(best_user, 'login', 'auth', f'{best_user.get_full_name()} logged in via face recognition', request=request)
+        return Response({
+            'user': UserDetailSerializer(best_user).data,
+            'tokens': {'refresh': str(refresh), 'access': str(refresh.access_token)},
+            'match_distance': round(best_dist, 4),
+        })

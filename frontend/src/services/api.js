@@ -20,6 +20,10 @@ export const authAPI = {
     apiClient.post('/auth/password_reset_confirm/', data),
   refreshToken: (refresh) =>
     apiClient.post('/auth/token/refresh/', { refresh }),
+  faceRegister: (descriptor) =>
+    apiClient.post('/auth/face_register/', { descriptor }),
+  faceLogin: (descriptor) =>
+    apiClient.post('/auth/face_login/', { descriptor }),
 }
 
 // User APIs

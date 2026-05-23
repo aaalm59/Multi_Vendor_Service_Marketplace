@@ -26,18 +26,41 @@ class LoginSerializer(serializers.Serializer):
     def validate(self, data):
         email = data.get('email')
         password = data.get('password')
-        
+
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.select_related('shop').get(email=email)
         except User.DoesNotExist:
             raise serializers.ValidationError("Invalid email or password.")
-        
+
         if not user.check_password(password):
             raise serializers.ValidationError("Invalid email or password.")
-        
+
         if not user.is_active:
-            raise serializers.ValidationError("User account is disabled.")
-        
+            # Give a specific message if the account was blocked due to shop suspension
+            if user.shop_id and hasattr(user, 'shop') and user.shop:
+                shop_status = user.shop.status
+                if shop_status == 'suspended':
+                    raise serializers.ValidationError(
+                        "Your shop has been suspended. Please contact the platform administrator."
+                    )
+                if shop_status == 'rejected':
+                    raise serializers.ValidationError(
+                        "Your shop registration was rejected. Please contact the platform administrator."
+                    )
+            raise serializers.ValidationError("Your account has been disabled. Please contact support.")
+
+        # Extra guard: block login if the user's shop is suspended/rejected even if is_active wasn't updated
+        if user.shop_id and hasattr(user, 'shop') and user.shop:
+            shop_status = user.shop.status
+            if shop_status == 'suspended':
+                raise serializers.ValidationError(
+                    "Your shop has been suspended. Please contact the platform administrator."
+                )
+            if shop_status == 'rejected':
+                raise serializers.ValidationError(
+                    "Your shop registration was rejected. Please contact the platform administrator."
+                )
+
         data['user'] = user
         return data
 

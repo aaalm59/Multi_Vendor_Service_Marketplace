@@ -121,13 +121,30 @@ class ShopViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(shops, many=True)
         return Response(serializer.data)
 
+    @staticmethod
+    def _set_shop_users_active(shop, is_active):
+        """Activate or deactivate the shop owner and all staff belonging to this shop."""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        # Update shop owner
+        if shop.owner:
+            shop.owner.is_active = is_active
+            shop.owner.save(update_fields=['is_active'])
+        # Update all staff users assigned to this shop (excluding super-admins)
+        User.objects.filter(shop=shop).exclude(
+            role__in=['admin']
+        ).update(is_active=is_active)
+
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         shop = self.get_object()
         shop.status = 'approved'
+        shop.is_active = True
         shop.approved_by = request.user
         shop.approved_at = timezone.now()
-        shop.save(update_fields=['status', 'approved_by', 'approved_at', 'updated_at'])
+        shop.save(update_fields=['status', 'is_active', 'approved_by', 'approved_at', 'updated_at'])
+        # Re-enable shop owner and all staff when shop is approved
+        self._set_shop_users_active(shop, True)
         ActivityLog.log(request.user, 'approve', 'shops', f"Approved shop {shop.name}", request=request, object_id=shop.pk)
         return Response(self.get_serializer(shop).data, status=status.HTTP_200_OK)
 
@@ -135,7 +152,10 @@ class ShopViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         shop = self.get_object()
         shop.status = 'rejected'
-        shop.save(update_fields=['status', 'updated_at'])
+        shop.is_active = False
+        shop.save(update_fields=['status', 'is_active', 'updated_at'])
+        # Block shop owner and staff from logging in when shop is rejected
+        self._set_shop_users_active(shop, False)
         ActivityLog.log(request.user, 'approve', 'shops', f"Rejected shop {shop.name}", request=request, object_id=shop.pk)
         return Response(self.get_serializer(shop).data, status=status.HTTP_200_OK)
 
@@ -145,6 +165,8 @@ class ShopViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         shop.status = 'suspended'
         shop.is_active = False
         shop.save(update_fields=['status', 'is_active', 'updated_at'])
+        # Block shop owner and staff from logging in when shop is suspended
+        self._set_shop_users_active(shop, False)
         ActivityLog.log(request.user, 'status_change', 'shops', f"Suspended shop {shop.name}", request=request, object_id=shop.pk)
         return Response(self.get_serializer(shop).data, status=status.HTTP_200_OK)
 

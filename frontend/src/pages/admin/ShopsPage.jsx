@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   FiShoppingBag, FiCheck, FiX, FiPause, FiSearch, FiPlus, FiRefreshCw,
   FiMapPin, FiPhone, FiMail, FiUser, FiUserPlus, FiKey, FiCopy, FiEye, FiEyeOff,
+  FiExternalLink,
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { shopAPI, userAPI } from '../../services/api'
@@ -15,45 +17,59 @@ const STATUS_COLOR = {
   suspended: 'bg-gray-100 text-gray-600 border-gray-200',
 }
 
-const ShopCard = ({ shop, onAction }) => (
-  <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-    <div className="flex items-start justify-between gap-3 mb-3">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        {shop.shop_logo ? (
-          <img src={shop.shop_logo} alt={shop.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
-        ) : (
-          <div className="w-12 h-12 rounded-xl bg-yellow-400 flex items-center justify-center flex-shrink-0">
-            <FiShoppingBag size={22} className="text-black" />
+const ShopCard = ({ shop, onAction, onOpenDashboard }) => (
+  <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col">
+    {/* Clickable header — opens dashboard */}
+    <div
+      className="p-5 flex-1 cursor-pointer group"
+      onClick={() => onOpenDashboard(shop.id)}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {shop.shop_logo ? (
+            <img src={shop.shop_logo} alt={shop.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-yellow-400 flex items-center justify-center flex-shrink-0">
+              <FiShoppingBag size={22} className="text-black" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <h3 className="font-bold text-gray-900 truncate group-hover:text-yellow-600 transition-colors">{shop.name}</h3>
+            <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium mt-0.5 ${STATUS_COLOR[shop.status] || STATUS_COLOR.pending}`}>
+              {shop.status}
+            </span>
           </div>
-        )}
-        <div className="min-w-0">
-          <h3 className="font-bold text-gray-900 truncate">{shop.name}</h3>
-          <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium mt-0.5 ${STATUS_COLOR[shop.status] || STATUS_COLOR.pending}`}>
-            {shop.status}
-          </span>
         </div>
+        <FiExternalLink size={14} className="text-gray-300 group-hover:text-yellow-500 transition-colors flex-shrink-0 mt-1" />
+      </div>
+
+      <div className="space-y-1.5 text-sm text-gray-600">
+        {shop.owner_name && (
+          <p className="flex items-center gap-2"><FiUser size={13} className="text-gray-400" /> {shop.owner_name}</p>
+        )}
+        {shop.phone && (
+          <p className="flex items-center gap-2"><FiPhone size={13} className="text-gray-400" /> {shop.phone}</p>
+        )}
+        {shop.email && (
+          <p className="flex items-center gap-2"><FiMail size={13} className="text-gray-400" /> {shop.email}</p>
+        )}
+        {(shop.city || shop.state) && (
+          <p className="flex items-center gap-2"><FiMapPin size={13} className="text-gray-400" /> {[shop.city, shop.state].filter(Boolean).join(', ')}</p>
+        )}
+        {shop.gst_number && (
+          <p className="text-xs text-gray-400">GST: {shop.gst_number}</p>
+        )}
       </div>
     </div>
 
-    <div className="space-y-1.5 text-sm text-gray-600 mb-4">
-      {shop.owner_name && (
-        <p className="flex items-center gap-2"><FiUser size={13} className="text-gray-400" /> {shop.owner_name}</p>
-      )}
-      {shop.phone && (
-        <p className="flex items-center gap-2"><FiPhone size={13} className="text-gray-400" /> {shop.phone}</p>
-      )}
-      {shop.email && (
-        <p className="flex items-center gap-2"><FiMail size={13} className="text-gray-400" /> {shop.email}</p>
-      )}
-      {(shop.city || shop.state) && (
-        <p className="flex items-center gap-2"><FiMapPin size={13} className="text-gray-400" /> {[shop.city, shop.state].filter(Boolean).join(', ')}</p>
-      )}
-      {shop.gst_number && (
-        <p className="text-xs text-gray-400">GST: {shop.gst_number}</p>
-      )}
-    </div>
-
-    <div className="flex gap-2 flex-wrap">
+    {/* Action buttons */}
+    <div className="px-5 pb-4 flex gap-2 flex-wrap border-t border-gray-100 pt-3">
+      <button
+        onClick={() => onOpenDashboard(shop.id)}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400 text-black rounded-lg text-xs font-bold hover:bg-yellow-500 transition-colors"
+      >
+        <FiExternalLink size={12} /> Open Dashboard
+      </button>
       {shop.status !== 'approved' && (
         <button onClick={() => onAction(shop.id, 'approve')} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors">
           <FiCheck size={12} /> Approve
@@ -182,6 +198,7 @@ const CredsModal = ({ creds, onClose }) => {
 }
 
 const ShopsPage = () => {
+  const navigate = useNavigate()
   const [allShops, setAllShops] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -226,6 +243,8 @@ const ShopsPage = () => {
 
   useEffect(() => { fetchShops() }, [])
   useEffect(() => { fetchSopUsers() }, [])
+  // Re-fetch SOP users every time the Create Shop modal opens so the list is always fresh
+  useEffect(() => { if (showCreate) fetchSopUsers() }, [showCreate])
 
   // Close SOP dropdown on outside click
   useEffect(() => {
@@ -321,8 +340,20 @@ const ShopsPage = () => {
         role: 'sop_user',
       })
       const created = res.data
-      setSopUsers(prev => [...prev, created])
-      setForm(prev => ({ ...prev, owner: String(created.id) }))
+      const createdId = String(created.id)
+
+      // Re-fetch from backend to get the full user list with consistent shape
+      let freshList = []
+      try {
+        const listRes = await userAPI.getByRole('sop_user')
+        freshList = listRes.data?.results || listRes.data || []
+        setSopUsers(freshList)
+      } catch {
+        // Fallback: add locally if re-fetch fails
+        setSopUsers(prev => [...prev, created])
+      }
+
+      setForm(prev => ({ ...prev, owner: createdId }))
 
       const fullName = [created.first_name, created.last_name].filter(Boolean).join(' ')
       setCreatedCreds({ name: fullName || created.email, email: created.email, password: newSop.password })
@@ -422,7 +453,12 @@ const ShopsPage = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {shops.map(shop => (
-            <ShopCard key={shop.id} shop={shop} onAction={handleAction} />
+            <ShopCard
+              key={shop.id}
+              shop={shop}
+              onAction={handleAction}
+              onOpenDashboard={(id) => navigate(`/admin/shops/${id}`)}
+            />
           ))}
         </div>
       )}

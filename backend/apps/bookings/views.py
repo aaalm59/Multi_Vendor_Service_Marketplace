@@ -99,7 +99,7 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         'messages': MANAGER_ROLES | {CUSTOMER, TECHNICIAN},
         'write': MANAGER_ROLES,
     }
-    filterset_fields = ['customer', 'technician', 'status']
+    filterset_fields = ['customer', 'technician', 'status', 'shop']
     search_fields = ['booking_number', 'customer__user__first_name', 'customer__user__last_name', 'customer__user__phone', 'service__name']
     ordering_fields = ['created_at', 'booking_date', 'scheduled_date', 'final_amount']
 

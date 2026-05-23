@@ -23,6 +23,8 @@ import ServicesPage from './pages/ServicesPage'
 import SettingsPage from './pages/SettingsPage'
 import AdminUsersPage from './pages/admin/UsersPage'
 import ShopsPage from './pages/admin/ShopsPage'
+import ShopDashboardPage from './pages/admin/ShopDashboardPage'
+import UserProfilePage from './pages/admin/UserProfilePage'
 import ShopSetupPage from './pages/ShopSetupPage'
 import ManagerPermissionsPage from './pages/admin/ManagerPermissionsPage'
 import ActivityLogsPage from './pages/admin/ActivityLogsPage'
@@ -89,8 +91,10 @@ const AppRoutes = () => {
                 <Route path="/expenses" element={<ProtectedRoute roles={routeRoles['/expenses']} module={routeModules['/expenses']}><ExpensesPage /></ProtectedRoute>} />
                 <Route path="/reports" element={<ProtectedRoute roles={routeRoles['/reports']} module={routeModules['/reports']}><ReportsPage /></ProtectedRoute>} />
                 <Route path="/admin/shops" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ShopsPage /></ProtectedRoute>} />
+                <Route path="/admin/shops/:shopId" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ShopDashboardPage /></ProtectedRoute>} />
                 <Route path="/shop-setup" element={<ProtectedRoute roles={[ROLES.SOP_USER]}><ShopSetupPage /></ProtectedRoute>} />
                 <Route path="/admin/users" element={<ProtectedRoute roles={[ROLES.ADMIN]}><AdminUsersPage /></ProtectedRoute>} />
+                <Route path="/admin/users/:userId" element={<ProtectedRoute roles={[ROLES.ADMIN]}><UserProfilePage /></ProtectedRoute>} />
                 <Route path="/admin/manager-permissions" element={<ProtectedRoute roles={[ROLES.ADMIN, ROLES.SOP_USER]}><ManagerPermissionsPage /></ProtectedRoute>} />
                 <Route path="/admin/activity-logs" element={<ProtectedRoute roles={[ROLES.ADMIN]}><ActivityLogsPage /></ProtectedRoute>} />
                 <Route path="/technician/jobs" element={<ProtectedRoute roles={[ROLES.TECHNICIAN]}><TechnicianJobsPage /></ProtectedRoute>} />

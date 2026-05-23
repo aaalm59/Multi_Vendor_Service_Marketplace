@@ -30,7 +30,7 @@ class TechnicianViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
         'availability': MANAGER_ROLES | SERVICE_ROLES,
         'write': MANAGER_ROLES,
     }
-    filterset_fields = ['availability_status']
+    filterset_fields = ['availability_status', 'shop', 'user']
     search_fields = ['user__first_name', 'user__last_name', 'user__email', 'specialization']
     ordering_fields = ['average_rating', 'completed_bookings', 'experience_years', 'created_at']
 

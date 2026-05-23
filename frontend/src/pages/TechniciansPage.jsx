@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { FiPlus, FiEdit2, FiDownload, FiUserPlus, FiX, FiCheck } from 'react-icons/fi'
+import { FiPlus, FiEdit2, FiDownload, FiUserPlus, FiX, FiCheck, FiEye } from 'react-icons/fi'
 import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import DataTable from '../components/DataTable'
 import FormField, { inputClass } from '../components/FormField'
 import Modal from '../components/Modal'
@@ -16,6 +17,7 @@ const emptyForm = { user: '', specialization: '', experience_years: '0', hourly_
 const emptyNewUser = { first_name: '', last_name: '', email: '', password: '' }
 
 const TechniciansPage = () => {
+  const navigate = useNavigate()
   const [technicians, setTechnicians] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -154,13 +156,26 @@ const TechniciansPage = () => {
     { key: 'experience_years', label: 'Experience', render: (r) => `${r.experience_years} yrs` },
     { key: 'average_rating', label: 'Rating', render: (r) => `⭐ ${Number(r.average_rating || 0).toFixed(1)}` },
     { key: 'hourly_rate', label: 'Rate', render: (r) => `₹${r.hourly_rate}/hr` },
-    canManage && {
+    {
       key: 'actions', label: 'Actions',
       render: (r) => (
-        <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 transition" title="Edit"><FiEdit2 size={13} /></button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => navigate(`/admin/users/${r.user?.id}`)}
+            className="p-1.5 rounded-lg bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition"
+            title="View Profile"
+          >
+            <FiEye size={13} />
+          </button>
+          {canManage && (
+            <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 transition" title="Edit">
+              <FiEdit2 size={13} />
+            </button>
+          )}
+        </div>
       ),
     },
-  ].filter(Boolean)
+  ]
 
   return (
     <div className="space-y-5">

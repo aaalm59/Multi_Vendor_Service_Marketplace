@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { FiPlus, FiEdit2, FiTrash2, FiUserCheck, FiUserX, FiDownload, FiSearch, FiShield } from 'react-icons/fi'
+import { useNavigate } from 'react-router-dom'
+import { FiPlus, FiEdit2, FiTrash2, FiUserCheck, FiUserX, FiDownload, FiSearch, FiShield, FiEye } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { userAPI, shopAPI } from '../../services/api'
 import Modal from '../../components/Modal'
@@ -39,6 +40,7 @@ const emptyForm = {
 }
 
 const AdminUsersPage = () => {
+  const navigate = useNavigate()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -327,6 +329,13 @@ const AdminUsersPage = () => {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => navigate(`/admin/users/${user.id}`)}
+                          className="p-1.5 rounded-lg bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition"
+                          title="View Profile"
+                        >
+                          <FiEye size={13} />
+                        </button>
                         <button
                           onClick={() => openEdit(user)}
                           className="p-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 transition"

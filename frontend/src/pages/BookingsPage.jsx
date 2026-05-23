@@ -546,6 +546,10 @@ const BookingsPage = () => {
       setIsListening(false)
       return
     }
+    if (!window.isSecureContext || !navigator.mediaDevices) {
+      toast.error('Microphone requires HTTPS. Please access the app over a secure connection.')
+      return
+    }
     if (!SPEECH_KEY || !SPEECH_REGION) {
       toast.error('Speech credentials not configured')
       return

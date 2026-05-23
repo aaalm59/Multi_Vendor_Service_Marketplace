@@ -213,6 +213,15 @@ class InventoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     }
     filterset_fields = ['product']
 
+    def perform_update(self, serializer):
+        inventory = serializer.save()
+        if inventory.quantity_on_hand <= inventory.reorder_level:
+            try:
+                from apps.notifications.service import notify_low_stock
+                notify_low_stock(inventory.product, inventory)
+            except Exception:
+                pass
+
 
 class StockMovementViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = StockMovement.objects.all()

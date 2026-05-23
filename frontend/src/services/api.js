@@ -308,14 +308,18 @@ export const reportAPI = {
 
 // Notification APIs
 export const notificationAPI = {
-  getAll: () =>
-    apiClient.get('/notifications/'),
+  getAll: (params) =>
+    apiClient.get('/notifications/', { params }),
   getUnread: () =>
     apiClient.get('/notifications/unread/'),
+  getUnreadCount: () =>
+    apiClient.get('/notifications/unread_count/'),
   markAsRead: (id) =>
     apiClient.post(`/notifications/${id}/mark_as_read/`),
   markAllRead: () =>
     apiClient.post('/notifications/mark_all_read/'),
+  clearAll: () =>
+    apiClient.delete('/notifications/clear_all/'),
 }
 
 // Manager Permission APIs (admin only)

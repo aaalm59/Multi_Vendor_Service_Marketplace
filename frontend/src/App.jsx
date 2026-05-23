@@ -30,6 +30,7 @@ import ManagerPermissionsPage from './pages/admin/ManagerPermissionsPage'
 import ActivityLogsPage from './pages/admin/ActivityLogsPage'
 import TechnicianJobsPage from './technician/TechnicianJobsPage'
 import CustomerInvoicesPage from './pages/customer/CustomerInvoicesPage'
+import NotificationsPage from './pages/NotificationsPage'
 import { canAccess, firstRouteForRole, navItems, ROLES } from './routes/rbac'
 import { CallProvider } from './context/CallContext'
 
@@ -100,6 +101,7 @@ const AppRoutes = () => {
                 <Route path="/technician/jobs" element={<ProtectedRoute roles={[ROLES.TECHNICIAN]}><TechnicianJobsPage /></ProtectedRoute>} />
                 <Route path="/customer/invoices" element={<ProtectedRoute roles={[ROLES.CUSTOMER]}><CustomerInvoicesPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute roles={routeRoles['/settings']}><SettingsPage /></ProtectedRoute>} />
+                <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />
               </Routes>
             </MainLayout>

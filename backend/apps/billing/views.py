@@ -115,7 +115,13 @@ class InvoiceSerializer(ModelSerializer):
                 invoice.total_amount = subtotal + tax_amount - invoice.discount_amount
                 invoice.save(update_fields=['subtotal', 'tax_amount', 'total_amount'])
 
-            return invoice
+        try:
+            from apps.notifications.service import notify_invoice_created
+            notify_invoice_created(invoice)
+        except Exception:
+            pass
+
+        return invoice
 
 
 class PaymentSerializer(ModelSerializer):

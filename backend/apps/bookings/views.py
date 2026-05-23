@@ -147,8 +147,13 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         service = serializer.validated_data.get('service')
         if shop and service and service.shop_id and service.shop_id != shop.id:
             raise serializers.ValidationError({'service': 'Service belongs to another shop.'})
-        serializer.save(shop=shop)
-    
+        booking = serializer.save(shop=shop)
+        try:
+            from apps.notifications.service import notify_booking_created
+            notify_booking_created(booking)
+        except Exception:
+            pass
+
     @action(detail=True, methods=['post'])
     def assign_technician(self, request, pk=None):
         """Assign technician to booking"""
@@ -169,6 +174,11 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             ActivityLog.log(request.user, 'assign', 'bookings',
                 f"Assigned technician {technician.user.get_full_name()} to booking {booking.booking_number}",
                 request=request, object_id=booking.pk)
+            try:
+                from apps.notifications.service import notify_technician_assigned
+                notify_technician_assigned(booking)
+            except Exception:
+                pass
             serializer = self.get_serializer(booking)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Technician.DoesNotExist:
@@ -194,16 +204,27 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         ActivityLog.log(user, 'assign', 'bookings',
             f"Technician {user.get_full_name()} self-assigned to booking {booking.booking_number}",
             request=request, object_id=booking.pk)
+        try:
+            from apps.notifications.service import notify_technician_assigned
+            notify_technician_assigned(booking)
+        except Exception:
+            pass
         return Response(self.get_serializer(booking).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def mark_completed(self, request, pk=None):
         """Mark booking as completed"""
         booking = self.get_object()
+        old_status = booking.status
         booking.status = 'completed'
         booking.completion_date = timezone.now()
         booking.final_amount = request.data.get('final_amount', booking.quote_amount)
         booking.save()
+        try:
+            from apps.notifications.service import notify_status_changed
+            notify_status_changed(booking, old_status, 'completed')
+        except Exception:
+            pass
         serializer = self.get_serializer(booking)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -231,6 +252,11 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         ActivityLog.log(request.user, 'status_change', 'bookings',
             f"Booking {booking.booking_number} status changed: {old_status} → {new_status}",
             request=request, object_id=booking.pk)
+        try:
+            from apps.notifications.service import notify_status_changed
+            notify_status_changed(booking, old_status, new_status)
+        except Exception:
+            pass
         return Response(self.get_serializer(booking).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='upload_repair_image')

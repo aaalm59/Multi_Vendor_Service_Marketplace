@@ -1,9 +1,34 @@
-import React, { useEffect, useState } from 'react'
-import { FiSave, FiUser, FiLock, FiShield, FiEye, FiEyeOff, FiCheck } from 'react-icons/fi'
+import React, { useEffect, useRef, useState } from 'react'
+import { FiSave, FiUser, FiLock, FiShield, FiEye, FiEyeOff, FiCheck, FiCamera, FiRefreshCw, FiCheckCircle } from 'react-icons/fi'
 import { useSelector, useDispatch } from 'react-redux'
 import { setUser } from '../redux/store'
-import { userAPI, authAPI } from '../services/api'
+import { authAPI } from '../services/api'
 import toast from 'react-hot-toast'
+import * as faceapi from 'face-api.js'
+
+const MODELS_URL = '/models'
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// Module-level cache — models load only once per browser session
+let _modelsOK = false
+const ensureModels = async () => {
+  if (_modelsOK) return
+  await faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL)
+  await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODELS_URL)
+  await faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URL)
+  _modelsOK = true
+}
+
+function _d(a, b) { return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2) }
+function earBoth(lm) {
+  const p = lm.positions
+  const e = (i) => (_d(p[i[1]], p[i[5]]) + _d(p[i[2]], p[i[4]])) / 2 / _d(p[i[0]], p[i[3]])
+  return (e([36, 37, 38, 39, 40, 41]) + e([42, 43, 44, 45, 46, 47])) / 2
+}
+
+const tinyOpts = () => new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 })
+const detectFace = (v) => faceapi.detectSingleFace(v, tinyOpts()).withFaceLandmarks(true)
+const detectDescriptor = (v) => faceapi.detectSingleFace(v, tinyOpts()).withFaceLandmarks(true).withFaceDescriptor()
 
 const SectionCard = ({ title, icon: Icon, children }) => (
   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -18,6 +43,181 @@ const SectionCard = ({ title, icon: Icon, children }) => (
 )
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent bg-gray-50 transition'
+
+const FaceIDSection = ({ user }) => {
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
+  const aliveRef  = useRef(false)
+
+  const [stage, setStage]       = useState('idle')  // idle | loading | cam | look | blink | capture | success | error
+  const [msg, setMsg]           = useState('')
+  const [registered, setReg]    = useState(user?.face_registered || false)
+
+  useEffect(() => () => stopAll(), [])
+
+  const stopAll = () => {
+    aliveRef.current = false
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+  }
+
+  const startRegistration = async () => {
+    setMsg('')
+
+    // Load models (cached after first run)
+    if (!_modelsOK) {
+      setStage('loading')
+      setMsg('Loading AI models (first time only)…')
+      try { await ensureModels() } catch {
+        setStage('error'); setMsg('Failed to load AI models.'); return
+      }
+    }
+
+    setStage('cam'); setMsg('Starting camera…')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360, facingMode: 'user' } })
+      streamRef.current = stream
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
+    } catch {
+      setStage('error'); setMsg('Camera access denied.'); return
+    }
+
+    aliveRef.current = true
+
+    // Phase 1: stable face detection
+    setStage('look'); setMsg('Look straight at the camera…')
+    let steady = 0
+    while (aliveRef.current) {
+      try {
+        const r = await detectFace(videoRef.current)
+        steady = r ? steady + 1 : 0
+        if (steady >= 4) break
+      } catch { steady = 0 }
+      await sleep(150)
+    }
+    if (!aliveRef.current) return
+
+    // Phase 2: blink liveness
+    setStage('blink'); setMsg('Now blink once  👁️')
+    const t0 = Date.now(); let wasOpen = true
+    while (aliveRef.current && Date.now() - t0 < 10_000) {
+      try {
+        const r = await detectFace(videoRef.current)
+        if (r) {
+          const ear = earBoth(r.landmarks)
+          if (wasOpen && ear < 0.21) { break }
+          wasOpen = ear > 0.26
+        }
+      } catch { /* ignore */ }
+      await sleep(80)
+    }
+    if (!aliveRef.current) return
+
+    // Phase 3: capture descriptor
+    setStage('capture'); setMsg('Capturing face…')
+    let result = null
+    for (let i = 0; i < 5 && aliveRef.current; i++) {
+      try { result = await detectDescriptor(videoRef.current) } catch { /* ignore */ }
+      if (result) break
+      await sleep(100)
+    }
+
+    if (!result) {
+      setStage('error'); setMsg('Could not read face clearly. Try better lighting.')
+      stopAll(); return
+    }
+
+    setStage('capture'); setMsg('Saving to server…')
+    try {
+      await authAPI.faceRegister(Array.from(result.descriptor))
+      setStage('success'); setMsg('Face ID registered! You can now log in with your face.')
+      setReg(true)
+      toast.success('Face ID registered successfully!')
+      stopAll()
+    } catch {
+      setStage('error'); setMsg('Failed to save — please try again.')
+      stopAll()
+    }
+  }
+
+  const reset = () => { stopAll(); setStage('idle'); setMsg('') }
+
+  const isStream = ['cam', 'look', 'blink', 'capture'].includes(stage)
+
+  return (
+    <SectionCard title="Face ID Authentication" icon={FiCamera}>
+      <div className="flex flex-col gap-4">
+
+        {/* Status badge */}
+        <div>
+          {registered
+            ? <span className="inline-flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5"><FiCheckCircle size={14} /> Face ID Registered</span>
+            : <span className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">Face ID not set up</span>}
+        </div>
+
+        {/* Camera preview */}
+        {isStream && (
+          <div className="relative w-full max-w-xs aspect-[4/3] rounded-2xl overflow-hidden bg-gray-900 border-2 border-yellow-400 mx-auto">
+            <video ref={videoRef} muted playsInline autoPlay
+              className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" />
+            {/* Corner brackets */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute top-3 left-3 w-7 h-7 border-t-[3px] border-l-[3px] border-yellow-400 rounded-tl-lg" />
+              <div className="absolute top-3 right-3 w-7 h-7 border-t-[3px] border-r-[3px] border-yellow-400 rounded-tr-lg" />
+              <div className="absolute bottom-3 left-3 w-7 h-7 border-b-[3px] border-l-[3px] border-yellow-400 rounded-bl-lg" />
+              <div className="absolute bottom-3 right-3 w-7 h-7 border-b-[3px] border-r-[3px] border-yellow-400 rounded-br-lg" />
+            </div>
+            {stage === 'blink' && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-yellow-400 text-black text-xs font-bold rounded-full animate-bounce">
+                Blink Now!
+              </div>
+            )}
+            {stage === 'capture' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <span className="w-10 h-10 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Status message */}
+        {msg && (
+          <p className={`text-sm font-semibold ${stage === 'success' ? 'text-green-600' : stage === 'error' ? 'text-red-600' : 'text-gray-700'}`}>
+            {stage === 'loading'
+              ? <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />{msg}</span>
+              : msg}
+          </p>
+        )}
+
+        {/* Buttons */}
+        <div className="flex gap-3 flex-wrap">
+          {!isStream && stage !== 'success' && stage !== 'loading' && (
+            <button onClick={startRegistration}
+              className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black font-bold px-4 py-2.5 rounded-lg transition text-sm">
+              <FiCamera size={14} />
+              {registered ? 'Re-register Face' : 'Set Up Face ID'}
+            </button>
+          )}
+          {stage === 'success' && (
+            <button onClick={reset}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+              <FiRefreshCw size={14} /> Re-register
+            </button>
+          )}
+          {(isStream || stage === 'error') && (
+            <button onClick={reset}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
+              <FiRefreshCw size={14} /> {isStream ? 'Cancel' : 'Try Again'}
+            </button>
+          )}
+        </div>
+
+        <p className="text-xs text-gray-400">Your face is converted to 128 numbers in your browser. Only the numbers are saved — never the image.</p>
+      </div>
+    </SectionCard>
+  )
+}
 
 const SettingsPage = () => {
   const dispatch = useDispatch()
@@ -46,7 +246,7 @@ const SettingsPage = () => {
     e.preventDefault()
     setSavingProfile(true)
     try {
-      const response = await userAPI.update(user.id, profile)
+      const response = await authAPI.updateMe(profile)
       dispatch(setUser({ ...user, ...response.data }))
       setProfileSaved(true)
       toast.success('Profile updated successfully')
@@ -241,6 +441,9 @@ const SettingsPage = () => {
           </div>
         </form>
       </SectionCard>
+
+      {/* Face ID Section */}
+      <FaceIDSection user={user} />
 
       {/* Account Details */}
       <SectionCard title="Account Details" icon={FiShield}>

@@ -15,6 +15,7 @@ from apps.expenses.models import Expense
 from apps.inventory.models import Product
 from apps.reports.models import Report, DailyMetrics
 from apps.users.permissions import ALL_AUTH_ROLES, CUSTOMER, HasRolePermission, INVENTORY_STAFF, MANAGER_ROLES, SALES_STAFF, TECHNICIAN
+from apps.shops.views import TenantScopedViewSetMixin, tenant_queryset
 
 class ReportSerializer(ModelSerializer):
     class Meta:
@@ -26,7 +27,7 @@ class DailyMetricsSerializer(ModelSerializer):
         model = DailyMetrics
         fields = '__all__'
 
-class ReportViewSet(viewsets.ModelViewSet):
+class ReportViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Report generation API"""
     queryset = Report.objects.all()
     serializer_class = ReportSerializer
@@ -102,6 +103,7 @@ class DailyMetricsViewSet(viewsets.ModelViewSet):
             })
 
         if getattr(user, 'role', None) == INVENTORY_STAFF:
+            products = tenant_queryset(Product.objects.all(), user)
             return Response({
                 'daily_revenue': 0,
                 'monthly_revenue': 0,
@@ -110,49 +112,60 @@ class DailyMetricsViewSet(viewsets.ModelViewSet):
                 'open_bookings': 0,
                 'pending_bookings': 0,
                 'completed_bookings': 0,
-                'low_stock_products': Product.objects.filter(
+                'low_stock_products': products.filter(
                     inventory__quantity_on_hand__lte=models.F('inventory__reorder_level')
                 ).count(),
             })
 
         if getattr(user, 'role', None) == SALES_STAFF:
-            daily_revenue = Invoice.objects.filter(invoice_date__date=today).aggregate(total=Sum('total_amount'))['total'] or 0
-            monthly_revenue = Invoice.objects.filter(invoice_date__date__gte=month_start).aggregate(total=Sum('total_amount'))['total'] or 0
+            invoices = tenant_queryset(Invoice.objects.all(), user)
+            bookings = tenant_queryset(Booking.objects.all(), user)
+            products = tenant_queryset(Product.objects.all(), user)
+            daily_revenue = invoices.filter(invoice_date__date=today).aggregate(total=Sum('total_amount'))['total'] or 0
+            monthly_revenue = invoices.filter(invoice_date__date__gte=month_start).aggregate(total=Sum('total_amount'))['total'] or 0
             return Response({
                 'daily_revenue': daily_revenue,
                 'monthly_revenue': monthly_revenue,
                 'monthly_expenses': 0,
                 'profit_loss': 0,
-                'open_bookings': Booking.objects.exclude(status__in=['completed', 'cancelled']).count(),
-                'pending_bookings': Booking.objects.filter(status='pending').count(),
-                'completed_bookings': Booking.objects.filter(completion_date__date__gte=month_start).count(),
-                'low_stock_products': Product.objects.filter(
+                'open_bookings': bookings.exclude(status__in=['completed', 'cancelled']).count(),
+                'pending_bookings': bookings.filter(status='pending').count(),
+                'completed_bookings': bookings.filter(completion_date__date__gte=month_start).count(),
+                'low_stock_products': products.filter(
                     inventory__quantity_on_hand__lte=models.F('inventory__reorder_level')
                 ).count(),
             })
 
-        daily_revenue = Invoice.objects.filter(invoice_date__date=today).aggregate(total=Sum('total_amount'))['total'] or 0
-        monthly_revenue = Invoice.objects.filter(invoice_date__date__gte=month_start).aggregate(total=Sum('total_amount'))['total'] or 0
-        monthly_expenses = Expense.objects.filter(expense_date__gte=month_start).aggregate(total=Sum('amount'))['total'] or 0
+        invoices = tenant_queryset(Invoice.objects.all(), user)
+        expenses = tenant_queryset(Expense.objects.all(), user)
+        bookings = tenant_queryset(Booking.objects.all(), user)
+        products = tenant_queryset(Product.objects.all(), user)
+        daily_revenue = invoices.filter(invoice_date__date=today).aggregate(total=Sum('total_amount'))['total'] or 0
+        monthly_revenue = invoices.filter(invoice_date__date__gte=month_start).aggregate(total=Sum('total_amount'))['total'] or 0
+        monthly_expenses = expenses.filter(expense_date__gte=month_start).aggregate(total=Sum('amount'))['total'] or 0
 
-        open_bookings = Booking.objects.exclude(status__in=['completed', 'cancelled']).count()
-        pending_bookings = Booking.objects.filter(status='pending').count()
-        completed_bookings = Booking.objects.filter(completion_date__date__gte=month_start).count()
-        low_stock_products = Product.objects.filter(
+        open_bookings = bookings.exclude(status__in=['completed', 'cancelled']).count()
+        pending_bookings = bookings.filter(status='pending').count()
+        completed_bookings = bookings.filter(completion_date__date__gte=month_start).count()
+        low_stock_products = products.filter(
             inventory__quantity_on_hand__lte=models.F('inventory__reorder_level')
         ).count()
 
         trend_start = today - timedelta(days=29)
-        existing_dates = set(DailyMetrics.objects.filter(date__gte=trend_start).values_list('date', flat=True))
+        metrics_qs = DailyMetrics.objects.filter(shop=getattr(user, 'shop', None))
+        if getattr(user, 'role', None) == 'admin' or user.is_superuser:
+            metrics_qs = DailyMetrics.objects.filter(shop__isnull=True)
+        existing_dates = set(metrics_qs.filter(date__gte=trend_start).values_list('date', flat=True))
         if today not in existing_dates:
             DailyMetrics.objects.update_or_create(
+                shop=None if (getattr(user, 'role', None) == 'admin' or user.is_superuser) else getattr(user, 'shop', None),
                 date=today,
                 defaults={
                     'total_revenue': daily_revenue,
-                    'total_expenses': Expense.objects.filter(expense_date=today).aggregate(total=Sum('amount'))['total'] or 0,
-                    'total_profit': daily_revenue - (Expense.objects.filter(expense_date=today).aggregate(total=Sum('amount'))['total'] or 0),
-                    'total_bookings': Booking.objects.filter(created_at__date=today).count(),
-                    'completed_bookings': Booking.objects.filter(completion_date__date=today).count(),
+                    'total_expenses': expenses.filter(expense_date=today).aggregate(total=Sum('amount'))['total'] or 0,
+                    'total_profit': daily_revenue - (expenses.filter(expense_date=today).aggregate(total=Sum('amount'))['total'] or 0),
+                    'total_bookings': bookings.filter(created_at__date=today).count(),
+                    'completed_bookings': bookings.filter(completion_date__date=today).count(),
                     'pending_bookings': pending_bookings,
                 },
             )

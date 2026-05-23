@@ -2,6 +2,7 @@ from rest_framework import viewsets
 from rest_framework.serializers import ModelSerializer
 from apps.expenses.models import Expense, ExpenseCategory
 from apps.users.permissions import HasRolePermission, MANAGER_ROLES
+from apps.shops.views import TenantScopedViewSetMixin
 
 class ExpenseCategorySerializer(ModelSerializer):
     class Meta:
@@ -21,14 +22,15 @@ class ExpenseSerializer(ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'expense_number', 'created_at', 'updated_at']
 
-class ExpenseCategoryViewSet(viewsets.ModelViewSet):
+class ExpenseCategoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Expense category API"""
     queryset = ExpenseCategory.objects.all()
     serializer_class = ExpenseCategorySerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'expenses'
     allowed_roles = MANAGER_ROLES
 
-class ExpenseViewSet(viewsets.ModelViewSet):
+class ExpenseViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Expense management API"""
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer

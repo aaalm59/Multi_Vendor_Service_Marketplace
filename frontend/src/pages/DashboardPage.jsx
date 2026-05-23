@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { FiAlertTriangle, FiCalendar, FiDollarSign, FiShoppingBag, FiTrendingUp, FiUsers, FiPackage, FiTool, FiArrowRight, FiBriefcase, FiBox, FiBarChart2, FiActivity, FiCheckCircle, FiClock, FiPlus } from 'react-icons/fi'
+import { FiAlertTriangle, FiCalendar, FiDollarSign, FiShoppingBag, FiTrendingUp, FiUsers, FiPackage, FiTool, FiArrowRight, FiBriefcase, FiBox, FiBarChart2, FiActivity, FiCheckCircle, FiClock, FiPlus, FiMapPin } from 'react-icons/fi'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
-import { reportAPI, bookingAPI, customerAPI, productAPI } from '../services/api'
+import { reportAPI, bookingAPI, customerAPI, productAPI, shopAPI } from '../services/api'
 import { ROLES, canDo } from '../routes/rbac'
 
 const StatCard = ({ title, value, icon: Icon, tone = 'yellow', sub, onClick }) => {
@@ -442,6 +442,123 @@ const CustomerDashboard = ({ user }) => {
   )
 }
 
+// ── Super Admin Platform Dashboard ────────────────────────────────────────────
+const AdminPlatformDashboard = ({ user }) => {
+  const navigate = useNavigate()
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    shopAPI.platformStats()
+      .then(res => setStats(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const STATUS_COLOR = {
+    approved: 'text-green-600 bg-green-50',
+    pending: 'text-yellow-600 bg-yellow-50',
+    rejected: 'text-red-600 bg-red-50',
+    suspended: 'text-gray-600 bg-gray-50',
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Platform Overview — <span className="text-yellow-500">Super Admin</span>
+          </h1>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/admin/shops')}
+          className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-xl font-bold text-sm hover:bg-yellow-500 transition"
+        >
+          <FiShoppingBag size={15} /> Manage Shops
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}
+        </div>
+      ) : (
+        <>
+          {/* Platform KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard title="Total Shops" value={stats?.total_shops ?? 0} icon={FiShoppingBag} tone="yellow" sub={`${stats?.active_shops ?? 0} active · ${stats?.pending_shops ?? 0} pending`} onClick={() => navigate('/admin/shops')} />
+            <StatCard title="Total Revenue" value={`₹${Number(stats?.total_revenue || 0).toLocaleString('en-IN')}`} icon={FiDollarSign} tone="green" sub="Across all shops" />
+            <StatCard title="Total Bookings" value={stats?.total_bookings ?? 0} icon={FiCalendar} tone="blue" sub="Platform-wide" />
+            <StatCard title="Total Customers" value={stats?.total_customers ?? 0} icon={FiUsers} tone="black" sub="Registered customers" />
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <StatCard title="Active Shops" value={stats?.active_shops ?? 0} icon={FiCheckCircle} tone="green" sub="Approved & live" onClick={() => navigate('/admin/shops')} />
+            <StatCard title="Pending Approval" value={stats?.pending_shops ?? 0} icon={FiClock} tone="purple" sub="Awaiting review" onClick={() => navigate('/admin/shops')} />
+            <StatCard title="Staff Members" value={stats?.total_staff ?? 0} icon={FiBriefcase} tone="yellow" sub="Managers + Staff + Technicians" />
+          </div>
+
+          {/* Quick admin actions */}
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Manage Shops',    icon: FiShoppingBag, path: '/admin/shops',              color: 'bg-yellow-400 text-black hover:bg-yellow-500' },
+                { label: 'User Management', icon: FiUsers,        path: '/admin/users',              color: 'bg-gray-900 text-white hover:bg-gray-800' },
+                { label: 'Staff Permissions', icon: FiActivity,   path: '/admin/manager-permissions', color: 'bg-sky-500 text-white hover:bg-sky-600' },
+                { label: 'Activity Logs',   icon: FiClock,        path: '/admin/activity-logs',      color: 'bg-emerald-500 text-white hover:bg-emerald-600' },
+              ].map(a => {
+                const Icon = a.icon
+                return (
+                  <button key={a.path} onClick={() => navigate(a.path)} className={`flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm transition shadow-sm ${a.color}`}>
+                    <Icon size={16} /> {a.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Shop Breakdown Table */}
+          {stats?.shop_breakdown?.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h2 className="font-bold text-gray-900 text-sm">Shop Breakdown</h2>
+                <button onClick={() => navigate('/admin/shops')} className="text-xs text-yellow-600 font-semibold hover:underline flex items-center gap-1">
+                  Manage All <FiArrowRight size={11} />
+                </button>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {stats.shop_breakdown.map(shop => (
+                  <div key={shop.id} className="flex items-center justify-between px-5 py-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                        <FiShoppingBag size={14} className="text-yellow-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{shop.name}</p>
+                        {shop.city && <p className="text-xs text-gray-400 flex items-center gap-1"><FiMapPin size={10} /> {shop.city}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      <span className="text-sm font-bold text-gray-900">{shop.booking_count} bookings</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${STATUS_COLOR[shop.status] || 'text-gray-600 bg-gray-50'}`}>
+                        {shop.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main DashboardPage (switches by role) ─────────────────────────────────────
 const DashboardPage = () => {
   // ALL hooks must be declared before any conditional returns (Rules of Hooks)
@@ -453,7 +570,7 @@ const DashboardPage = () => {
   const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
 
-  const isAdminView = user && ![ROLES.MANAGER, ROLES.TECHNICIAN, ROLES.CUSTOMER].includes(user.role)
+  const isAdminView = user && ![ROLES.ADMIN, ROLES.MANAGER, ROLES.TECHNICIAN, ROLES.CUSTOMER].includes(user.role)
 
   const fetchAll = async () => {
     try {
@@ -481,6 +598,7 @@ const DashboardPage = () => {
   }, [isAdminView]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Role-specific dashboards — rendered AFTER all hooks
+  if (user?.role === ROLES.ADMIN) return <AdminPlatformDashboard user={user} />
   if (user?.role === ROLES.MANAGER) return <ManagerDashboard user={user} />
   if (user?.role === ROLES.TECHNICIAN) return <TechnicianDashboard user={user} />
   if (user?.role === ROLES.CUSTOMER) return <CustomerDashboard user={user} />

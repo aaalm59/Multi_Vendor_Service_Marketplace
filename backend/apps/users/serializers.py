@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.users.models import User, ManagerPermission, ActivityLog
+from apps.users.permissions import PERMISSION_ASSIGNABLE_ROLES
 from django.contrib.auth.password_validation import validate_password
 
 
@@ -12,20 +13,24 @@ class ManagerPermissionSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'avatar', 'bio', 'is_active']
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'shop', 'avatar', 'bio', 'is_active']
 
 
 class UserDetailSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
+    shop_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'avatar', 'bio', 'is_verified', 'created_at', 'updated_at', 'permissions']
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'shop', 'shop_name', 'avatar', 'bio', 'is_verified', 'created_at', 'updated_at', 'permissions']
 
     def get_permissions(self, obj):
-        if obj.role == 'manager':
+        if obj.role in PERMISSION_ASSIGNABLE_ROLES:
             return ManagerPermissionSerializer(obj.manager_permissions.all(), many=True).data
         return []
+
+    def get_shop_name(self, obj):
+        return obj.shop.name if obj.shop else ''
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -33,7 +38,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'email', 'phone', 'role', 'password', 'password_confirm']
+        fields = ['first_name', 'last_name', 'email', 'phone', 'role', 'shop', 'password', 'password_confirm']
         extra_kwargs = {'role': {'required': False}}
     
     def validate(self, data):
@@ -62,14 +67,15 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'phone', 'bio', 'role', 'is_active']
+        fields = ['first_name', 'last_name', 'phone', 'bio', 'role', 'shop', 'is_active']
 
 class AdminUserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
 
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'email', 'phone', 'role', 'password']
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'role', 'shop', 'password']
+        read_only_fields = ['id']
         extra_kwargs = {'role': {'required': True}}
 
     def create(self, validated_data):

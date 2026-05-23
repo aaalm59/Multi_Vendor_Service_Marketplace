@@ -10,6 +10,8 @@ export const authAPI = {
     apiClient.post('/auth/logout/', { refresh: refreshToken }),
   getCurrentUser: () =>
     apiClient.get('/auth/me/'),
+  updateMe: (data) =>
+    apiClient.patch('/auth/me/', data),
   changePassword: (data) =>
     apiClient.post('/auth/change_password/', data),
   passwordReset: (email) =>
@@ -18,6 +20,10 @@ export const authAPI = {
     apiClient.post('/auth/password_reset_confirm/', data),
   refreshToken: (refresh) =>
     apiClient.post('/auth/token/refresh/', { refresh }),
+  faceRegister: (descriptor) =>
+    apiClient.post('/auth/face_register/', { descriptor }),
+  faceLogin: (descriptor) =>
+    apiClient.post('/auth/face_login/', { descriptor }),
 }
 
 // User APIs
@@ -40,6 +46,38 @@ export const userAPI = {
     apiClient.post(`/users/${id}/deactivate/`),
 }
 
+// Shop APIs
+export const shopAPI = {
+  getAll: (params) =>
+    apiClient.get('/shops/', { params }),
+  getPublic: () =>
+    apiClient.get('/shops/public/'),
+  getById: (id) =>
+    apiClient.get(`/shops/${id}/`),
+  create: (data) =>
+    apiClient.post('/shops/', data),
+  update: (id, data) =>
+    apiClient.patch(`/shops/${id}/`, data),
+  approve: (id) =>
+    apiClient.post(`/shops/${id}/approve/`),
+  reject: (id) =>
+    apiClient.post(`/shops/${id}/reject/`),
+  suspend: (id) =>
+    apiClient.post(`/shops/${id}/suspend/`),
+  platformStats: () =>
+    apiClient.get('/shops/platform_stats/'),
+  myShop: () =>
+    apiClient.get('/shops/my_shop/'),
+  createMyShop: (data) =>
+    apiClient.post('/shops/my_shop/', data, {
+      headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
+    }),
+  updateMyShop: (data) =>
+    apiClient.patch('/shops/my_shop/', data, {
+      headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
+    }),
+}
+
 // Customer APIs
 export const customerAPI = {
   getAll: (params) =>
@@ -60,6 +98,8 @@ export const customerAPI = {
     apiClient.get(`/customers/top_customers/?limit=${limit}`),
   getBookings: (id) =>
     apiClient.get(`/customers/${id}/bookings/`),
+  getAnalytics: () =>
+    apiClient.get('/customers/customer_analytics/'),
 }
 
 // Booking APIs
@@ -80,6 +120,8 @@ export const bookingAPI = {
     apiClient.post(`/bookings/${id}/update_status/`, { status: statusVal, ...extra }),
   cancelBooking: (id, reason) =>
     apiClient.post(`/bookings/${id}/cancel_booking/`, { reason }),
+  selfAssign: (id) =>
+    apiClient.post(`/bookings/${id}/self_assign/`),
   submitReview: (id, rating, review = '') =>
     apiClient.post(`/bookings/${id}/submit_review/`, { rating, review }),
   uploadRepairImage: (id, formData) =>
@@ -142,6 +184,19 @@ export const serviceAPI = {
     apiClient.patch(`/services/${id}/`, data),
   delete: (id) =>
     apiClient.delete(`/services/${id}/`),
+  getServiceAnalytics: () =>
+    apiClient.get('/services/service_analytics/'),
+}
+
+export const serviceCategoryAPI = {
+  getAll: (params) =>
+    apiClient.get('/services/categories/', { params }),
+  create: (data) =>
+    apiClient.post('/services/categories/', data),
+  update: (id, data) =>
+    apiClient.patch(`/services/categories/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/services/categories/${id}/`),
 }
 
 // Product APIs
@@ -160,16 +215,20 @@ export const productAPI = {
     apiClient.get('/inventory/products/low_stock/'),
   getByBarcode: (barcode) =>
     apiClient.get(`/inventory/products/by_barcode/?barcode=${barcode}`),
+  getInventoryAnalytics: () =>
+    apiClient.get('/inventory/products/inventory_analytics/'),
 }
 
 // Category APIs
 export const categoryAPI = {
-  getAll: () =>
-    apiClient.get('/inventory/categories/'),
+  getAll: (params) =>
+    apiClient.get('/inventory/categories/', { params }),
   create: (data) =>
     apiClient.post('/inventory/categories/', data),
   update: (id, data) =>
     apiClient.patch(`/inventory/categories/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/inventory/categories/${id}/`),
 }
 
 // Invoice APIs
@@ -182,6 +241,10 @@ export const invoiceAPI = {
     apiClient.post('/billing/invoices/', data),
   generatePDF: (id) =>
     apiClient.post(`/billing/invoices/${id}/generate_pdf/`),
+  getBillingAnalytics: () =>
+    apiClient.get('/billing/invoices/billing_analytics/'),
+  getDailySummary: () =>
+    apiClient.get('/billing/invoices/daily_summary/'),
 }
 
 // Supplier APIs
@@ -245,14 +308,18 @@ export const reportAPI = {
 
 // Notification APIs
 export const notificationAPI = {
-  getAll: () =>
-    apiClient.get('/notifications/'),
+  getAll: (params) =>
+    apiClient.get('/notifications/', { params }),
   getUnread: () =>
     apiClient.get('/notifications/unread/'),
+  getUnreadCount: () =>
+    apiClient.get('/notifications/unread_count/'),
   markAsRead: (id) =>
     apiClient.post(`/notifications/${id}/mark_as_read/`),
   markAllRead: () =>
     apiClient.post('/notifications/mark_all_read/'),
+  clearAll: () =>
+    apiClient.delete('/notifications/clear_all/'),
 }
 
 // Manager Permission APIs (admin only)

@@ -5,7 +5,8 @@ import uuid
 
 class ProductCategory(BaseModel):
     """Product category"""
-    name = models.CharField(max_length=100, unique=True)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='product_categories')
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=50, null=True, blank=True)
     
@@ -13,19 +14,21 @@ class ProductCategory(BaseModel):
         ordering = ['name']
         verbose_name = 'Category'
         verbose_name_plural = 'Categories'
+        unique_together = ('shop', 'name')
     
     def __str__(self):
         return self.name
 
 class Product(BaseModel):
     """Product model"""
-    SKU = models.CharField(max_length=50, unique=True)
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='products')
+    SKU = models.CharField(max_length=50)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     category = models.ForeignKey(ProductCategory, on_delete=models.SET_NULL, null=True, related_name='products')
     price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    barcode = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    barcode = models.CharField(max_length=100, null=True, blank=True)
     image = models.ImageField(upload_to='products/', null=True, blank=True)
     unit = models.CharField(max_length=20, default='piece')
     is_taxable = models.BooleanField(default=True)
@@ -37,6 +40,7 @@ class Product(BaseModel):
         verbose_name_plural = 'Products'
         indexes = [
             models.Index(fields=['SKU']),
+            models.Index(fields=['shop', 'SKU']),
             models.Index(fields=['barcode']),
             models.Index(fields=['category']),
         ]
@@ -46,6 +50,7 @@ class Product(BaseModel):
 
 class Inventory(models.Model):
     """Inventory tracking"""
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='inventory_records')
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='inventory')
     quantity_on_hand = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     quantity_reserved = models.IntegerField(default=0, validators=[MinValueValidator(0)])
@@ -57,6 +62,9 @@ class Inventory(models.Model):
     class Meta:
         verbose_name = 'Inventory'
         verbose_name_plural = 'Inventory'
+        indexes = [
+            models.Index(fields=['shop']),
+        ]
     
     def __str__(self):
         return f"{self.product.name} - {self.quantity_on_hand} units"
@@ -79,6 +87,7 @@ class StockMovement(models.Model):
         ('return', 'Return'),
     )
     
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='stock_movements')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_movements')
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPE_CHOICES)
     quantity = models.IntegerField(validators=[MinValueValidator(0)])
@@ -90,6 +99,7 @@ class StockMovement(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['product', 'created_at']),
+            models.Index(fields=['shop', 'created_at']),
         ]
     
     def __str__(self):

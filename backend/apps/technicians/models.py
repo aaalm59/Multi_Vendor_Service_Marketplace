@@ -6,6 +6,7 @@ import uuid
 class Technician(BaseModel):
     """Technician model"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='technician_profile')
+    shop = models.ForeignKey('shops.Shop', on_delete=models.CASCADE, null=True, blank=True, related_name='technicians')
     specialization = models.CharField(max_length=255)
     experience_years = models.IntegerField(validators=[MinValueValidator(0)])
     hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(0)])
@@ -26,6 +27,7 @@ class Technician(BaseModel):
         verbose_name_plural = 'Technicians'
         indexes = [
             models.Index(fields=['availability_status']),
+            models.Index(fields=['shop', 'availability_status']),
         ]
     
     def __str__(self):

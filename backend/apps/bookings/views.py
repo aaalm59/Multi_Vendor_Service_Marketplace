@@ -1,3 +1,5 @@
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -10,6 +12,8 @@ from apps.services.views import ServiceSerializer
 from apps.users.permissions import CUSTOMER, TECHNICIAN, HasRolePermission, MANAGER_ROLES, SERVICE_ROLES
 from apps.users.audit import AuditLoggingMixin
 from apps.users.models import ActivityLog
+from apps.shops.models import Shop
+from apps.shops.views import tenant_queryset
 
 
 class BookingMessageSerializer(ModelSerializer):
@@ -44,6 +48,7 @@ class BookingSerializer(ModelSerializer):
         data['customer'] = CustomerDetailSerializer(instance.customer).data
         data['service'] = ServiceSerializer(instance.service).data if instance.service else None
         data['technician'] = TechnicianSerializer(instance.technician).data if instance.technician else None
+        data['shop_name'] = instance.shop.name if instance.shop else ''
         return data
 
     class Meta:
@@ -61,6 +66,16 @@ class BookingSerializer(ModelSerializer):
             'pincode': {'required': False, 'allow_blank': True},
         }
 
+    def validate(self, attrs):
+        shop = attrs.get('shop') or getattr(self.instance, 'shop', None)
+        service = attrs.get('service') or getattr(self.instance, 'service', None)
+        technician = attrs.get('technician') or getattr(self.instance, 'technician', None)
+        if shop and service and service.shop_id and service.shop_id != shop.id:
+            raise serializers.ValidationError({'service': 'Service belongs to another shop.'})
+        if shop and technician and technician.shop_id and technician.shop_id != shop.id:
+            raise serializers.ValidationError({'technician': 'Technician belongs to another shop.'})
+        return attrs
+
 class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     audit_module = 'bookings'
     """Booking management API"""
@@ -73,6 +88,7 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         'read': MANAGER_ROLES | SERVICE_ROLES | {CUSTOMER},
         'create': MANAGER_ROLES | {CUSTOMER},
         'assign_technician': MANAGER_ROLES,
+        'self_assign': MANAGER_ROLES | {TECHNICIAN},
         'mark_completed': MANAGER_ROLES | SERVICE_ROLES,
         'update_status': MANAGER_ROLES | {TECHNICIAN},
         'upload_repair_image': MANAGER_ROLES | {TECHNICIAN},
@@ -83,7 +99,7 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         'messages': MANAGER_ROLES | {CUSTOMER, TECHNICIAN},
         'write': MANAGER_ROLES,
     }
-    filterset_fields = ['customer', 'technician', 'status']
+    filterset_fields = ['customer', 'technician', 'status', 'shop']
     search_fields = ['booking_number', 'customer__user__first_name', 'customer__user__last_name', 'customer__user__phone', 'service__name']
     ordering_fields = ['created_at', 'booking_date', 'scheduled_date', 'final_amount']
 
@@ -92,13 +108,28 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         user = self.request.user
         if getattr(user, 'role', None) == CUSTOMER:
             return queryset.filter(customer__user=user)
-        if getattr(user, 'role', None) == 'technician':
+        if getattr(user, 'role', None) == TECHNICIAN:
+            # Technician sees: their assigned bookings + shop's pending unassigned bookings
+            shop_id = getattr(user, 'shop_id', None)
+            if shop_id:
+                return queryset.filter(
+                    Q(technician__user=user) |
+                    Q(shop_id=shop_id, technician__isnull=True, status='pending')
+                )
             return queryset.filter(technician__user=user)
-        return queryset
+        return tenant_queryset(queryset, user)
 
     def perform_create(self, serializer):
         user = self.request.user
+        shop = None
+        shop_id = self.request.data.get('shop')
         if getattr(user, 'role', None) == CUSTOMER:
+            if not shop_id:
+                raise serializers.ValidationError({'shop': 'Shop selection is required.'})
+            try:
+                shop = Shop.objects.get(id=shop_id, status='approved', is_active=True)
+            except Shop.DoesNotExist:
+                raise serializers.ValidationError({'shop': 'Selected shop is not available.'})
             if not hasattr(user, 'customer_profile'):
                 # Auto-create a minimal Customer profile so the booking can proceed
                 from apps.customers.models import Customer
@@ -107,10 +138,22 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
                 )
             else:
                 profile = user.customer_profile
-            serializer.save(customer=profile)
+            serializer.save(customer=profile, shop=shop)
             return
-        serializer.save()
-    
+        if getattr(user, 'role', None) != 'admin' and not user.is_superuser:
+            shop = getattr(user, 'shop', None)
+        elif shop_id:
+            shop = Shop.objects.filter(id=shop_id).first()
+        service = serializer.validated_data.get('service')
+        if shop and service and service.shop_id and service.shop_id != shop.id:
+            raise serializers.ValidationError({'service': 'Service belongs to another shop.'})
+        booking = serializer.save(shop=shop)
+        try:
+            from apps.notifications.service import notify_booking_created
+            notify_booking_created(booking)
+        except Exception:
+            pass
+
     @action(detail=True, methods=['post'])
     def assign_technician(self, request, pk=None):
         """Assign technician to booking"""
@@ -123,26 +166,65 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         from apps.technicians.models import Technician
         try:
             technician = Technician.objects.get(id=technician_id)
+            if booking.shop_id and technician.shop_id and booking.shop_id != technician.shop_id:
+                return Response({'error': 'Technician belongs to another shop'}, status=status.HTTP_400_BAD_REQUEST)
             booking.technician = technician
             booking.status = 'assigned'
             booking.save()
             ActivityLog.log(request.user, 'assign', 'bookings',
                 f"Assigned technician {technician.user.get_full_name()} to booking {booking.booking_number}",
                 request=request, object_id=booking.pk)
+            try:
+                from apps.notifications.service import notify_technician_assigned
+                notify_technician_assigned(booking)
+            except Exception:
+                pass
             serializer = self.get_serializer(booking)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Technician.DoesNotExist:
             return Response({'error': 'Technician not found'}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=True, methods=['post'])
+    def self_assign(self, request, pk=None):
+        """Technician self-assigns to a pending booking in their shop."""
+        booking = self.get_object()
+        user = request.user
+        if not hasattr(user, 'technician_profile'):
+            return Response({'error': 'No technician profile found'}, status=status.HTTP_400_BAD_REQUEST)
+        if booking.status != 'pending':
+            return Response({'error': 'Only pending bookings can be self-assigned'}, status=status.HTTP_400_BAD_REQUEST)
+        if booking.technician_id:
+            return Response({'error': 'Booking already has a technician assigned'}, status=status.HTTP_400_BAD_REQUEST)
+        tech = user.technician_profile
+        if booking.shop_id and tech.shop_id and booking.shop_id != tech.shop_id:
+            return Response({'error': 'Booking belongs to a different shop'}, status=status.HTTP_403_FORBIDDEN)
+        booking.technician = tech
+        booking.status = 'assigned'
+        booking.save()
+        ActivityLog.log(user, 'assign', 'bookings',
+            f"Technician {user.get_full_name()} self-assigned to booking {booking.booking_number}",
+            request=request, object_id=booking.pk)
+        try:
+            from apps.notifications.service import notify_technician_assigned
+            notify_technician_assigned(booking)
+        except Exception:
+            pass
+        return Response(self.get_serializer(booking).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
     def mark_completed(self, request, pk=None):
         """Mark booking as completed"""
         booking = self.get_object()
+        old_status = booking.status
         booking.status = 'completed'
-        from datetime import datetime
-        booking.completion_date = datetime.now()
+        booking.completion_date = timezone.now()
         booking.final_amount = request.data.get('final_amount', booking.quote_amount)
         booking.save()
+        try:
+            from apps.notifications.service import notify_status_changed
+            notify_status_changed(booking, old_status, 'completed')
+        except Exception:
+            pass
         serializer = self.get_serializer(booking)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -163,14 +245,18 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         old_status = booking.status
         booking.status = new_status
         if new_status == 'completed':
-            from datetime import datetime
-            booking.completion_date = datetime.now()
+            booking.completion_date = timezone.now()
             if request.data.get('final_amount'):
                 booking.final_amount = request.data['final_amount']
         booking.save()
         ActivityLog.log(request.user, 'status_change', 'bookings',
             f"Booking {booking.booking_number} status changed: {old_status} → {new_status}",
             request=request, object_id=booking.pk)
+        try:
+            from apps.notifications.service import notify_status_changed
+            notify_status_changed(booking, old_status, new_status)
+        except Exception:
+            pass
         return Response(self.get_serializer(booking).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='upload_repair_image')
@@ -207,8 +293,7 @@ class BookingViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
         if not note:
             return Response({'error': 'Note cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
 
-        import datetime
-        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+        timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
         new_note = f"[{timestamp}] {user.get_full_name()}: {note}"
         booking.notes = f"{booking.notes}\n{new_note}".strip() if booking.notes else new_note
         booking.save()

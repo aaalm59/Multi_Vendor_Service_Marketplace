@@ -13,6 +13,7 @@ from apps.staff.models import Staff
 from apps.suppliers.models import Supplier
 from apps.technicians.models import Technician
 from apps.reports.models import DailyMetrics
+from apps.shops.models import Shop
 
 
 class Command(BaseCommand):
@@ -36,6 +37,22 @@ class Command(BaseCommand):
         if created:
             admin.set_password('admin123')
             admin.save()
+
+        shop, _ = Shop.objects.get_or_create(
+            name='Bharat Electric Main Branch',
+            defaults={
+                'owner': admin,
+                'phone': '9000000000',
+                'email': 'main@bharatelectric.local',
+                'address': 'Main Road, Local Market',
+                'city': 'Patna',
+                'state': 'Bihar',
+                'pincode': '800001',
+                'status': 'approved',
+                'approved_by': admin,
+                'approved_at': timezone.now(),
+            },
+        )
 
         customer_user, _ = User.objects.get_or_create(
             email='customer@example.com',
@@ -69,12 +86,16 @@ class Command(BaseCommand):
                 'last_name': 'Manager',
                 'phone': '9000000002',
                 'role': 'manager',
+                'shop': shop,
                 'is_staff': True,
             },
         )
         if created:
             manager_user.set_password('manager123')
             manager_user.save()
+        if manager_user.shop_id != shop.id:
+            manager_user.shop = shop
+            manager_user.save(update_fields=['shop'])
 
         technician_user, created = User.objects.get_or_create(
             email='technician@example.com',
@@ -84,11 +105,15 @@ class Command(BaseCommand):
                 'last_name': 'Technician',
                 'phone': '9000000003',
                 'role': 'technician',
+                'shop': shop,
             },
         )
         if created:
             technician_user.set_password('tech123')
             technician_user.save()
+        if technician_user.shop_id != shop.id:
+            technician_user.shop = shop
+            technician_user.save(update_fields=['shop'])
 
         Staff.objects.get_or_create(
             user=manager_user,
@@ -102,6 +127,7 @@ class Command(BaseCommand):
                 'city': 'Patna',
                 'state': 'Bihar',
                 'postal_code': '800001',
+                'shop': shop,
             },
         )
 
@@ -115,12 +141,13 @@ class Command(BaseCommand):
                 'completed_bookings': 42,
                 'average_rating': 4.6,
                 'total_earnings': Decimal('58000.00'),
+                'shop': shop,
             },
         )
 
         categories = ['Wire', 'Switch', 'Fan', 'LED', 'CCTV', 'Battery', 'Inverter', 'Motor Pump']
         category_map = {
-            name: ProductCategory.objects.get_or_create(name=name)[0]
+            name: ProductCategory.objects.get_or_create(name=name, shop=shop)[0]
             for name in categories
         }
 
@@ -133,6 +160,7 @@ class Command(BaseCommand):
         for sku, name, category, price, cost_price, qty in products:
             product, _ = Product.objects.get_or_create(
                 SKU=sku,
+                shop=shop,
                 defaults={
                     'name': name,
                     'category': category_map[category],
@@ -143,7 +171,7 @@ class Command(BaseCommand):
             )
             Inventory.objects.get_or_create(
                 product=product,
-                defaults={'quantity_on_hand': qty, 'reorder_level': 10, 'reorder_quantity': 30},
+                defaults={'shop': shop, 'quantity_on_hand': qty, 'reorder_level': 10, 'reorder_quantity': 30},
             )
 
         services = [
@@ -154,6 +182,7 @@ class Command(BaseCommand):
         for name, description, price, duration in services:
             Service.objects.get_or_create(
                 name=name,
+                shop=shop,
                 defaults={
                     'description': description,
                     'base_price': price,
@@ -168,6 +197,7 @@ class Command(BaseCommand):
         for name, contact, email, phone, purchases, paid in suppliers:
             Supplier.objects.get_or_create(
                 email=email,
+                shop=shop,
                 defaults={
                     'name': name,
                     'contact_person': contact,
@@ -184,12 +214,13 @@ class Command(BaseCommand):
             )
 
         expense_categories = {
-            name: ExpenseCategory.objects.get_or_create(name=name)[0]
+            name: ExpenseCategory.objects.get_or_create(name=name, shop=shop)[0]
             for name in ['Shop Rent', 'Electricity Bills', 'Salary', 'Transport', 'Misc Expenses']
         }
         Expense.objects.get_or_create(
             description='Monthly shop rent',
             expense_date=timezone.localdate(),
+            shop=shop,
             defaults={
                 'category': expense_categories['Shop Rent'],
                 'amount': Decimal('18000.00'),
@@ -205,6 +236,7 @@ class Command(BaseCommand):
             revenue = Decimal('4500.00') + Decimal(offset * 350)
             expense = Decimal('1200.00') + Decimal(offset * 120)
             DailyMetrics.objects.update_or_create(
+                shop=shop,
                 date=day,
                 defaults={
                     'total_revenue': revenue,

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { FiCheck, FiPlus, FiUserCheck, FiDownload, FiX, FiXCircle, FiStar, FiCamera, FiUser, FiTool, FiMapPin, FiCalendar, FiFileText, FiImage, FiAlertCircle, FiClock, FiMessageCircle, FiSend, FiPaperclip, FiFile, FiMic, FiMicOff, FiPhone, FiVideo } from 'react-icons/fi'
+import { FiCheck, FiPlus, FiUserCheck, FiDownload, FiX, FiXCircle, FiStar, FiCamera, FiUser, FiTool, FiMapPin, FiCalendar, FiFileText, FiImage, FiAlertCircle, FiClock, FiMessageCircle, FiSend, FiPaperclip, FiFile, FiMic, FiMicOff, FiPhone, FiVideo, FiSearch, FiUserPlus, FiCopy } from 'react-icons/fi'
 import Cookies from 'js-cookie'
 import { useCallContext } from '../context/CallContext'
 
@@ -12,7 +12,7 @@ const defaultWsBase =
     : ''
 const WS_BASE = (import.meta.env.VITE_WS_URL || defaultWsBase).replace(/^http/, 'ws')
 import { useSelector } from 'react-redux'
-import { bookingAPI, customerAPI, serviceAPI, technicianAPI } from '../services/api'
+import { bookingAPI, customerAPI, serviceAPI, shopAPI, technicianAPI, userAPI } from '../services/api'
 import toast from 'react-hot-toast'
 import DataTable from '../components/DataTable'
 import FormField, { inputClass } from '../components/FormField'
@@ -55,6 +55,7 @@ const BookingsPage = () => {
   const [bookings, setBookings] = useState([])
   const [customers, setCustomers] = useState([])
   const [services, setServices] = useState([])
+  const [shops, setShops] = useState([])
   const [technicians, setTechnicians] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -66,6 +67,15 @@ const BookingsPage = () => {
   const [assignModal, setAssignModal] = useState(null) // booking object or null
   const [selectedTechnician, setSelectedTechnician] = useState('')
   const [assigning, setAssigning] = useState(false)
+  // Assign modal — enhanced technician list + inline creation
+  const [modalTechs, setModalTechs] = useState([])
+  const [modalTechsLoading, setModalTechsLoading] = useState(false)
+  const [techSearch, setTechSearch] = useState('')
+  const [showCreateTech, setShowCreateTech] = useState(false)
+  const [newTech, setNewTech] = useState({ first_name: '', last_name: '', email: '', phone: '', password: '', confirm_password: '', specialization: '', experience_years: '1' })
+  const [creatingTech, setCreatingTech] = useState(false)
+  const [techCreds, setTechCreds] = useState(null)
+  const [showTechPwd, setShowTechPwd] = useState(false)
 
   // Complete booking modal
   const [completeModal, setCompleteModal] = useState(null)
@@ -122,6 +132,7 @@ const BookingsPage = () => {
 
   const [form, setForm] = useState({
     customer: '',
+    shop: '',
     service: '',
     booking_date: new Date().toISOString().slice(0, 16),
     scheduled_date: '',
@@ -139,16 +150,20 @@ const BookingsPage = () => {
     const loadFormData = async () => {
       try {
         // Customers don't need the customer list (backend auto-assigns them)
-        const [customerRes, serviceRes] = await Promise.all([
+        const [customerRes, serviceRes, shopRes] = await Promise.all([
           user?.role !== ROLES.CUSTOMER
             ? customerAPI.getAll({ limit: 100 })
             : Promise.resolve({ data: [] }),
           serviceAPI.getAll({ limit: 100 }),
+          user?.role === ROLES.CUSTOMER
+            ? shopAPI.getPublic()
+            : shopAPI.getAll({ limit: 100 }),
         ])
         if (user?.role !== ROLES.CUSTOMER) {
           setCustomers(customerRes.data?.results || customerRes.data || [])
         }
         setServices(serviceRes.data?.results || serviceRes.data || [])
+        setShops(shopRes.data?.results || shopRes.data || [])
 
         // Pre-populate service_address for customer from their profile
         if (user?.role === ROLES.CUSTOMER) {
@@ -252,6 +267,7 @@ const BookingsPage = () => {
   const buildBookingPayload = () => {
     const payload = {
       service: form.service,
+      shop: form.shop,
       booking_date: new Date(form.booking_date).toISOString(),
       service_address: form.service_address,
       problem_description: form.problem_description,
@@ -260,9 +276,21 @@ const BookingsPage = () => {
     if (form.scheduled_date) payload.scheduled_date = form.scheduled_date
     if (form.scheduled_time) payload.scheduled_time = form.scheduled_time
     if (form.quote_amount)   payload.quote_amount   = form.quote_amount
+    if (!payload.shop) delete payload.shop
     // Staff sets customer explicitly; customer role has it auto-assigned by perform_create
     if (user?.role !== ROLES.CUSTOMER && form.customer) payload.customer = form.customer
     return payload
+  }
+
+  const handleShopChange = async (shopId) => {
+    setForm((prev) => ({ ...prev, shop: shopId, service: '' }))
+    if (user?.role !== ROLES.CUSTOMER || !shopId) return
+    try {
+      const res = await serviceAPI.getAll({ limit: 100, shop: shopId })
+      setServices(res.data?.results || res.data || [])
+    } catch {
+      toast.error('Could not load services for selected shop')
+    }
   }
 
   const handleSubmit = async (event) => {
@@ -282,7 +310,7 @@ const BookingsPage = () => {
       setShowForm(false)
       if (problemImageRef.current) problemImageRef.current.value = ''
       setForm({
-        customer: '', service: '',
+        customer: '', shop: '', service: '',
         booking_date: new Date().toISOString().slice(0, 16),
         scheduled_date: '', scheduled_time: '',
         service_address: '', problem_description: '', quote_amount: '',
@@ -302,9 +330,26 @@ const BookingsPage = () => {
     }
   }
 
-  const openAssignModal = (booking) => {
+  const openAssignModal = async (booking) => {
     setAssignModal(booking)
-    setSelectedTechnician(technicians[0]?.id || '')
+    setSelectedTechnician('')
+    setShowCreateTech(false)
+    setNewTech({ first_name: '', last_name: '', email: '', phone: '', password: '', confirm_password: '', specialization: '', experience_years: '1' })
+    setTechSearch('')
+    setTechCreds(null)
+    setShowTechPwd(false)
+    setModalTechsLoading(true)
+    try {
+      const res = await technicianAPI.getAll({ limit: 200 })
+      const list = res.data?.results || res.data || []
+      setModalTechs(list)
+      const available = list.filter(t => t.availability_status === 'available')
+      if (available.length === 1) setSelectedTechnician(available[0].id)
+    } catch {
+      toast.error('Could not load technicians')
+    } finally {
+      setModalTechsLoading(false)
+    }
   }
 
   const handleAssignTechnician = async () => {
@@ -312,14 +357,67 @@ const BookingsPage = () => {
     setAssigning(true)
     try {
       await bookingAPI.assignTechnician(assignModal.id, selectedTechnician)
-      const tech = technicians.find((t) => t.id === selectedTechnician)
+      const tech = modalTechs.find((t) => t.id === selectedTechnician)
       toast.success(`Assigned to ${tech?.user?.first_name || 'technician'}`)
       setAssignModal(null)
+      setTechCreds(null)
       fetchBookings()
     } catch {
       toast.error('Technician assignment failed')
     } finally {
       setAssigning(false)
+    }
+  }
+
+  const handleCreateTechnician = async () => {
+    const { first_name, last_name, email, phone, password, confirm_password, specialization, experience_years } = newTech
+    if (!first_name.trim()) { toast.error('First name is required'); return }
+    if (!email.trim()) { toast.error('Email is required'); return }
+    if (!password || password.length < 8) { toast.error('Password must be at least 8 characters'); return }
+    if (password !== confirm_password) { toast.error('Passwords do not match'); return }
+    setCreatingTech(true)
+    try {
+      const userRes = await userAPI.create({
+        first_name: first_name.trim(), last_name: last_name.trim(),
+        email: email.trim(), phone: phone.trim(), password, role: 'technician',
+      })
+      const createdUser = userRes.data
+      const techRes = await technicianAPI.create({
+        user: createdUser.id,
+        specialization: specialization.trim() || 'General',
+        experience_years: Number(experience_years) || 1,
+        hourly_rate: 0,
+        availability_status: 'available',
+      })
+      const createdTech = techRes.data
+      const listRes = await technicianAPI.getAll({ limit: 200 })
+      const freshList = listRes.data?.results || listRes.data || []
+      setModalTechs(freshList)
+      setSelectedTechnician(createdTech.id)
+      setTechCreds({
+        name: [first_name.trim(), last_name.trim()].filter(Boolean).join(' '),
+        email: email.trim(), password,
+      })
+      setShowCreateTech(false)
+      setNewTech({ first_name: '', last_name: '', email: '', phone: '', password: '', confirm_password: '', specialization: '', experience_years: '1' })
+      toast.success(`Technician "${createdUser.first_name}" created and auto-selected!`)
+    } catch (error) {
+      const data = error.response?.data
+      const msg = data?.email?.[0] || data?.user?.[0] || data?.non_field_errors?.[0] || data?.detail || 'Failed to create technician'
+      toast.error(msg)
+    } finally {
+      setCreatingTech(false)
+    }
+  }
+
+  const handleSelfAssign = async (booking) => {
+    try {
+      await bookingAPI.selfAssign(booking.id)
+      toast.success('Booking assigned to you!')
+      fetchBookings()
+    } catch (error) {
+      const msg = error.response?.data?.error || 'Could not self-assign booking'
+      toast.error(msg)
     }
   }
 
@@ -525,6 +623,7 @@ const BookingsPage = () => {
 
   const columns = [
     { key: 'booking_number', label: 'Booking #' },
+    { key: 'shop_name', label: 'Shop', render: (row) => row.shop_name || '-' },
     { key: 'customer', label: 'Customer', render: (row) => `${row.customer?.user?.first_name || ''} ${row.customer?.user?.last_name || ''}`.trim() || '-' },
     { key: 'service', label: 'Service', render: (row) => row.service?.name || '-' },
     {
@@ -550,6 +649,16 @@ const BookingsPage = () => {
           {canAssignTechnician && !row.technician && row.status !== 'completed' && row.status !== 'cancelled' && (
             <button onClick={() => openAssignModal(row)} className="rounded-lg bg-sky-50 p-2 text-sky-700 hover:bg-sky-100 transition" title="Assign technician">
               <FiUserCheck size={15} />
+            </button>
+          )}
+          {/* Technician: self-assign pending bookings */}
+          {user?.role === ROLES.TECHNICIAN && !row.technician && row.status === 'pending' && (
+            <button
+              onClick={() => handleSelfAssign(row)}
+              className="rounded-lg bg-yellow-50 p-2 text-yellow-700 hover:bg-yellow-100 transition"
+              title="Assign to me"
+            >
+              <FiUser size={15} />
             </button>
           )}
           {/* Staff: mark complete */}
@@ -652,6 +761,18 @@ const BookingsPage = () => {
               </select>
             </FormField>
           )}
+          {(user?.role === ROLES.CUSTOMER || user?.role === ROLES.ADMIN) && (
+            <FormField label="Shop">
+              <select className={inputClass} value={form.shop} onChange={(e) => handleShopChange(e.target.value)} required={user?.role === ROLES.CUSTOMER || user?.role === ROLES.ADMIN}>
+                <option value="">Select shop</option>
+                {shops.map((shop) => (
+                  <option key={shop.id} value={shop.id}>
+                    {shop.name}{shop.city ? ` — ${shop.city}` : ''}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
           <FormField label="Service">
             <select className={inputClass} value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} required>
               <option value="">Select service</option>
@@ -702,60 +823,252 @@ const BookingsPage = () => {
         </form>
       </Modal>
 
-      {/* Assign Technician Modal */}
-      <Modal title="Assign Technician" open={!!assignModal} onClose={() => setAssignModal(null)} width="max-w-md">
+      {/* Assign Technician Modal — Enhanced */}
+      <Modal
+        title="Assign Technician"
+        open={!!assignModal}
+        onClose={() => { setAssignModal(null); setTechCreds(null) }}
+        width="max-w-lg"
+      >
         {assignModal && (
           <div className="space-y-4">
-            <div className="rounded-lg bg-gray-50 border border-gray-200 p-3">
-              <p className="text-sm font-semibold text-gray-800">{assignModal.booking_number}</p>
-              <p className="text-xs text-gray-500 mt-1">{assignModal.service?.name} — {assignModal.customer?.user?.first_name} {assignModal.customer?.user?.last_name}</p>
+
+            {/* Booking info card */}
+            <div className="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3">
+              <p className="text-sm font-bold text-gray-800">{assignModal.booking_number}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {assignModal.service?.name}
+                {assignModal.customer?.user?.first_name && ` · ${assignModal.customer.user.first_name} ${assignModal.customer.user.last_name || ''}`}
+              </p>
             </div>
-            {technicians.length === 0 ? (
-              <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4 text-sm text-yellow-800">
-                No available technicians right now. Please make a technician available first.
-              </div>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Select Available Technician</label>
-                  <div className="space-y-2 max-h-56 overflow-y-auto">
-                    {technicians.map((tech) => (
-                      <label
-                        key={tech.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
-                          selectedTechnician === tech.id
-                            ? 'border-yellow-400 bg-yellow-50'
-                            : 'border-gray-200 hover:border-yellow-300 bg-white'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="technician"
-                          value={tech.id}
-                          checked={selectedTechnician === tech.id}
-                          onChange={() => setSelectedTechnician(tech.id)}
-                          className="accent-yellow-400"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800">{tech.user?.first_name} {tech.user?.last_name}</p>
-                          <p className="text-xs text-gray-500">{tech.specialization} • {tech.experience_years} yrs exp • ₹{tech.hourly_rate}/hr</p>
-                        </div>
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">Available</span>
-                      </label>
-                    ))}
+
+            {/* Credentials card — shown after inline creation */}
+            {techCreds && (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                    <FiCheck size={11} className="text-white" />
+                  </div>
+                  <p className="text-sm font-bold text-green-800">Technician Created & Auto-Selected</p>
+                </div>
+                <div className="space-y-1.5 text-sm">
+                  {[
+                    { label: 'Name', value: techCreds.name },
+                    { label: 'Email / Username', value: techCreds.email },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-green-100">
+                      <span className="text-xs text-gray-400">{label}</span>
+                      <span className="font-semibold text-gray-800 text-xs">{value}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-green-100">
+                    <span className="text-xs text-gray-400">Password</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold text-gray-800 text-xs">
+                        {showTechPwd ? techCreds.password : '••••••••'}
+                      </span>
+                      <button onClick={() => setShowTechPwd(v => !v)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+                        {showTechPwd ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="flex justify-end gap-3 border-t pt-4">
-                  <button onClick={() => setAssignModal(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`Name: ${techCreds.name}\nEmail: ${techCreds.email}\nPassword: ${techCreds.password}`)
+                    toast.success('Credentials copied to clipboard!')
+                  }}
+                  className="mt-3 w-full py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5"
+                >
+                  <FiCopy size={12} /> Copy All Credentials
+                </button>
+              </div>
+            )}
+
+            {/* Inline create technician form */}
+            {showCreateTech && (
+              <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4 space-y-3">
+                <p className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  <FiUserPlus size={14} className="text-yellow-600" /> Create New Technician
+                </p>
+                <p className="text-xs text-gray-500 -mt-1">Will be auto-assigned to the current shop with technician role.</p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">First Name *</label>
+                    <input className={inputClass} placeholder="First name" value={newTech.first_name} onChange={(e) => setNewTech(p => ({ ...p, first_name: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Last Name</label>
+                    <input className={inputClass} placeholder="Last name" value={newTech.last_name} onChange={(e) => setNewTech(p => ({ ...p, last_name: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Email *</label>
+                    <input className={inputClass} type="email" placeholder="email@example.com" value={newTech.email} onChange={(e) => setNewTech(p => ({ ...p, email: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Mobile Number</label>
+                    <input className={inputClass} type="tel" placeholder="Phone number" value={newTech.phone} onChange={(e) => setNewTech(p => ({ ...p, phone: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Password *</label>
+                    <input className={inputClass} type="password" placeholder="Min 8 characters" value={newTech.password} onChange={(e) => setNewTech(p => ({ ...p, password: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Confirm Password *</label>
+                    <input className={inputClass} type="password" placeholder="Repeat password" value={newTech.confirm_password} onChange={(e) => setNewTech(p => ({ ...p, confirm_password: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Specialization</label>
+                    <input className={inputClass} placeholder="e.g. AC Repair, Wiring" value={newTech.specialization} onChange={(e) => setNewTech(p => ({ ...p, specialization: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Experience (years)</label>
+                    <input className={inputClass} type="number" min="0" placeholder="Years of experience" value={newTech.experience_years} onChange={(e) => setNewTech(p => ({ ...p, experience_years: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
                   <button
-                    onClick={handleAssignTechnician}
-                    disabled={assigning || !selectedTechnician}
-                    className="rounded-lg bg-yellow-400 px-5 py-2 text-sm font-bold text-black disabled:opacity-60 hover:bg-yellow-500 transition flex items-center gap-2"
+                    type="button"
+                    onClick={() => {
+                      setShowCreateTech(false)
+                      setNewTech({ first_name: '', last_name: '', email: '', phone: '', password: '', confirm_password: '', specialization: '', experience_years: '1' })
+                    }}
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 font-semibold"
                   >
-                    {assigning ? <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <FiUserCheck size={16} />}
-                    {assigning ? 'Assigning...' : 'Assign Technician'}
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateTechnician}
+                    disabled={creatingTech}
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-lg bg-gray-900 text-white font-bold hover:bg-gray-800 disabled:opacity-60 transition"
+                  >
+                    {creatingTech
+                      ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Creating...</>
+                      : <><FiCheck size={13} /> Create &amp; Select</>}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Technician list — shown when not in create mode */}
+            {!showCreateTech && (
+              <>
+                {modalTechsLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <div className="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : modalTechs.length === 0 ? (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 p-6 text-center">
+                    <FiTool size={32} className="mx-auto mb-2 text-amber-400 opacity-50" />
+                    <p className="text-sm font-bold text-amber-800 mb-1">No technicians in this shop yet</p>
+                    <p className="text-xs text-amber-600 mb-4">Create a technician and they'll be auto-assigned to this booking.</p>
+                    <button
+                      onClick={() => setShowCreateTech(true)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black text-sm font-bold rounded-xl transition mx-auto"
+                    >
+                      <FiUserPlus size={15} /> Create New Technician
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Search bar */}
+                    <div className="relative">
+                      <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        value={techSearch}
+                        onChange={(e) => setTechSearch(e.target.value)}
+                        placeholder="Search by name or specialization…"
+                        className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      />
+                    </div>
+
+                    {/* Technician cards */}
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Select Technician</p>
+                      <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
+                        {(() => {
+                          const filtered = modalTechs.filter(t => {
+                            if (!techSearch.trim()) return true
+                            const name = `${t.user?.first_name || ''} ${t.user?.last_name || ''}`.toLowerCase()
+                            return name.includes(techSearch.toLowerCase()) ||
+                              (t.specialization || '').toLowerCase().includes(techSearch.toLowerCase())
+                          })
+                          if (filtered.length === 0) return (
+                            <p className="text-sm text-gray-400 text-center py-4">No match for "{techSearch}"</p>
+                          )
+                          return filtered.map((tech) => (
+                            <label
+                              key={tech.id}
+                              className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                                selectedTechnician === tech.id
+                                  ? 'border-yellow-400 bg-yellow-50'
+                                  : 'border-gray-200 hover:border-yellow-300 bg-white'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="tech"
+                                value={tech.id}
+                                checked={selectedTechnician === tech.id}
+                                onChange={() => setSelectedTechnician(tech.id)}
+                                className="accent-yellow-400 flex-shrink-0"
+                              />
+                              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-xs flex-shrink-0">
+                                {(tech.user?.first_name?.[0] || 'T').toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">
+                                  {[tech.user?.first_name, tech.user?.last_name].filter(Boolean).join(' ') || tech.user?.email}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {tech.specialization || 'General'} · {tech.experience_years} yrs · ₹{tech.hourly_rate}/hr
+                                </p>
+                              </div>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${
+                                tech.availability_status === 'available' ? 'bg-green-100 text-green-700' :
+                                tech.availability_status === 'busy' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-100 text-gray-500'
+                              }`}>
+                                {tech.availability_status}
+                              </span>
+                            </label>
+                          ))
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Create new technician CTA */}
+                    <button
+                      onClick={() => setShowCreateTech(true)}
+                      className="flex items-center justify-center gap-2 w-full py-2.5 border-2 border-dashed border-gray-300 hover:border-yellow-400 hover:bg-yellow-50/50 text-gray-500 hover:text-yellow-700 text-sm font-semibold rounded-xl transition"
+                    >
+                      <FiUserPlus size={14} /> Create New Technician
+                    </button>
+                  </>
+                )}
+
+                {/* Footer */}
+                {modalTechs.length > 0 && (
+                  <div className="flex justify-end gap-3 border-t pt-4">
+                    <button
+                      onClick={() => { setAssignModal(null); setTechCreds(null) }}
+                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAssignTechnician}
+                      disabled={assigning || !selectedTechnician}
+                      className="rounded-lg bg-yellow-400 px-5 py-2 text-sm font-bold text-black disabled:opacity-60 hover:bg-yellow-500 transition flex items-center gap-2"
+                    >
+                      {assigning
+                        ? <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        : <FiUserCheck size={16} />}
+                      {assigning ? 'Assigning...' : 'Assign Technician'}
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

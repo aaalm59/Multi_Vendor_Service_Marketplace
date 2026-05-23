@@ -1,6 +1,7 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 ADMIN = 'admin'
+SOP_USER = 'sop_user'
 MANAGER = 'manager'
 TECHNICIAN = 'technician'
 SALES_STAFF = 'sales_staff'
@@ -8,12 +9,16 @@ INVENTORY_STAFF = 'inventory_staff'
 CUSTOMER = 'customer'
 
 ADMIN_ROLES = {ADMIN}
-MANAGER_ROLES = {ADMIN, MANAGER}
-SHOP_ROLES = {ADMIN, MANAGER, SALES_STAFF, INVENTORY_STAFF}
-SALES_ROLES = {ADMIN, MANAGER, SALES_STAFF}
-INVENTORY_ROLES = {ADMIN, MANAGER, INVENTORY_STAFF}
-SERVICE_ROLES = {ADMIN, MANAGER, TECHNICIAN}
+MANAGER_ROLES = {ADMIN, SOP_USER, MANAGER}
+SHOP_ROLES = {ADMIN, SOP_USER, MANAGER, SALES_STAFF, INVENTORY_STAFF}
+SALES_ROLES = {ADMIN, SOP_USER, MANAGER, SALES_STAFF}
+INVENTORY_ROLES = {ADMIN, SOP_USER, MANAGER, INVENTORY_STAFF}
+SERVICE_ROLES = {ADMIN, SOP_USER, MANAGER, TECHNICIAN}
 ALL_AUTH_ROLES = {ADMIN, MANAGER, TECHNICIAN, SALES_STAFF, INVENTORY_STAFF, CUSTOMER}
+ALL_AUTH_ROLES = ALL_AUTH_ROLES | {SOP_USER}
+DYNAMIC_PERMISSION_ROLES = {MANAGER, SALES_STAFF, INVENTORY_STAFF}
+PERMISSION_ASSIGNER_ROLES = {ADMIN, SOP_USER}
+PERMISSION_ASSIGNABLE_ROLES = {MANAGER, SALES_STAFF, INVENTORY_STAFF}
 
 # Maps HTTP method / DRF action to ManagerPermission.action values
 _SAFE_ACTIONS = {'list', 'retrieve', 'available', 'by_role', 'by_city', 'by_specialization',
@@ -29,6 +34,8 @@ def _manager_action_for_request(request, view):
         return 'manage_staff'
     if drf_action in ('assign_technician',):
         return 'manage_bookings'
+    if drf_action and drf_action.startswith('approve'):
+        return 'approve'
     if request.method in SAFE_METHODS or drf_action in _SAFE_ACTIONS:
         return 'view'
     if drf_action == 'create' or request.method == 'POST':
@@ -78,8 +85,8 @@ class HasRolePermission(BasePermission):
         if user_role not in allowed_roles:
             return False
 
-        # For managers, additionally enforce dynamic module permissions
-        if user_role == MANAGER:
+        # Shop owners/admins pass by role; staff roles need assigned module permissions.
+        if user_role in DYNAMIC_PERMISSION_ROLES:
             module = getattr(view, 'permission_module', None)
             if module:
                 needed_action = _manager_action_for_request(request, view)
@@ -94,7 +101,7 @@ class IsAdminOrManager(BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        return request.user.role in {ADMIN, MANAGER} or request.user.is_superuser
+        return request.user.role in {ADMIN, SOP_USER, MANAGER} or request.user.is_superuser
 
 
 class IsBusinessStaff(BasePermission):
@@ -103,4 +110,4 @@ class IsBusinessStaff(BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        return request.user.role in {ADMIN, MANAGER, SALES_STAFF, INVENTORY_STAFF} or request.user.is_superuser
+        return request.user.role in {ADMIN, SOP_USER, MANAGER, SALES_STAFF, INVENTORY_STAFF} or request.user.is_superuser

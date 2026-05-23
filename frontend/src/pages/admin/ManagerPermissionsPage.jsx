@@ -14,15 +14,19 @@ const ACTIONS = [
   { key: 'update', label: 'Update' },
   { key: 'delete', label: 'Delete' },
   { key: 'export_csv', label: 'Export CSV' },
+  { key: 'approve', label: 'Approve' },
+  { key: 'assign', label: 'Assign' },
   { key: 'manage_staff', label: 'Manage Staff' },
   { key: 'manage_inventory', label: 'Manage Inventory' },
   { key: 'manage_services', label: 'Manage Services' },
   { key: 'manage_bookings', label: 'Manage Bookings' },
 ]
 
+const STAFF_ROLES = ['manager', 'sales_staff', 'inventory_staff']
+
 const hasPermKey = (set, module, action) => set.has(`${module}:${action}`)
 
-const ManagerRow = ({ manager }) => {
+const StaffPermissionRow = ({ staffUser }) => {
   const [open, setOpen] = useState(false)
   const [perms, setPerms] = useState(new Set())
   const [loading, setLoading] = useState(false)
@@ -31,7 +35,7 @@ const ManagerRow = ({ manager }) => {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await managerPermissionAPI.getPermissions(manager.id)
+      const res = await managerPermissionAPI.getPermissions(staffUser.id)
       setPerms(new Set(res.data.map((p) => `${p.module}:${p.action}`)))
     } catch {
       toast.error('Failed to load permissions')
@@ -79,8 +83,8 @@ const ManagerRow = ({ manager }) => {
         const [module, action] = key.split(':')
         return { module, action }
       })
-      await managerPermissionAPI.setPermissions(manager.id, permissions)
-      toast.success(`Permissions saved for ${manager.first_name}`)
+      await managerPermissionAPI.setPermissions(staffUser.id, permissions)
+      toast.success(`Permissions saved for ${staffUser.first_name || staffUser.email}`)
     } catch {
       toast.error('Failed to save permissions')
     } finally {
@@ -88,7 +92,7 @@ const ManagerRow = ({ manager }) => {
     }
   }
 
-  const initials = [manager.first_name?.[0], manager.last_name?.[0]].filter(Boolean).join('') || 'M'
+  const initials = [staffUser.first_name?.[0], staffUser.last_name?.[0]].filter(Boolean).join('') || staffUser.email?.[0]?.toUpperCase() || 'S'
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -102,9 +106,9 @@ const ManagerRow = ({ manager }) => {
           </div>
           <div className="text-left">
             <p className="text-white font-semibold">
-              {manager.first_name} {manager.last_name}
+              {staffUser.first_name} {staffUser.last_name}
             </p>
-            <p className="text-gray-500 text-xs">{manager.email}</p>
+            <p className="text-gray-500 text-xs">{staffUser.email} · {staffUser.role?.replace('_', ' ')}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -184,13 +188,16 @@ const ManagerRow = ({ manager }) => {
 }
 
 const ManagerPermissionsPage = () => {
-  const [managers, setManagers] = useState([])
+  const [staffUsers, setStaffUsers] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    userAPI.getByRole('manager')
-      .then((res) => setManagers(res.data?.results || res.data || []))
-      .catch(() => toast.error('Failed to load managers'))
+    Promise.all(STAFF_ROLES.map((role) => userAPI.getByRole(role)))
+      .then((responses) => {
+        const users = responses.flatMap((res) => res.data?.results || res.data || [])
+        setStaffUsers(users)
+      })
+      .catch(() => toast.error('Failed to load staff users'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -201,22 +208,22 @@ const ManagerPermissionsPage = () => {
           <FiShield size={20} className="text-black" />
         </div>
         <div>
-          <h1 className="text-white text-xl font-bold">Manager Permissions</h1>
-          <p className="text-gray-400 text-sm">Assign module-level access to each manager</p>
+          <h1 className="text-white text-xl font-bold">Staff Permissions</h1>
+          <p className="text-gray-400 text-sm">Assign module-level access to managers and staff</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500">Loading managers...</div>
-      ) : managers.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">Loading staff users...</div>
+      ) : staffUsers.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <FiUser size={40} className="mx-auto mb-3 opacity-30" />
-          <p>No manager accounts found</p>
+          <p>No staff accounts found</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {managers.map((m) => (
-            <ManagerRow key={m.id} manager={m} />
+          {staffUsers.map((staffUser) => (
+            <StaffPermissionRow key={staffUser.id} staffUser={staffUser} />
           ))}
         </div>
       )}

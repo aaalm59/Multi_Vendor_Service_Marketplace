@@ -1,5 +1,6 @@
 import { createSlice, configureStore } from '@reduxjs/toolkit'
 import Cookies from 'js-cookie'
+import notificationReducer from './notificationSlice'
 
 // Auth Slice
 const authSlice = createSlice({
@@ -67,6 +68,7 @@ const store = configureStore({
   reducer: {
     auth: authSlice.reducer,
     ui: uiSlice.reducer,
+    notifications: notificationReducer,
   },
 })
 

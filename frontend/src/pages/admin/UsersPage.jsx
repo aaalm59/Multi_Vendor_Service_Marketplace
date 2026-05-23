@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { FiPlus, FiEdit2, FiTrash2, FiUserCheck, FiUserX, FiDownload, FiSearch, FiShield } from 'react-icons/fi'
+import { useNavigate } from 'react-router-dom'
+import { FiPlus, FiEdit2, FiTrash2, FiUserCheck, FiUserX, FiDownload, FiSearch, FiShield, FiEye } from 'react-icons/fi'
 import toast from 'react-hot-toast'
-import { userAPI } from '../../services/api'
+import { userAPI, shopAPI } from '../../services/api'
 import Modal from '../../components/Modal'
 import FormField, { inputClass } from '../../components/FormField'
 import { downloadCSV } from '../../utils/exportCSV'
@@ -9,6 +10,7 @@ import { downloadCSV } from '../../utils/exportCSV'
 const ROLES = [
   { value: '', label: 'All Roles' },
   { value: 'admin', label: 'Admin' },
+  { value: 'sop_user', label: 'Shop Owner (SOP)' },
   { value: 'manager', label: 'Manager' },
   { value: 'technician', label: 'Technician' },
   { value: 'sales_staff', label: 'Sales Staff' },
@@ -18,6 +20,7 @@ const ROLES = [
 
 const roleColors = {
   admin: 'bg-red-100 text-red-700',
+  sop_user: 'bg-yellow-100 text-yellow-800',
   manager: 'bg-blue-100 text-blue-700',
   technician: 'bg-purple-100 text-purple-700',
   sales_staff: 'bg-green-100 text-green-700',
@@ -31,11 +34,13 @@ const emptyForm = {
   email: '',
   phone: '',
   role: 'customer',
+  shop: '',
   password: '',
   is_active: true,
 }
 
 const AdminUsersPage = () => {
+  const navigate = useNavigate()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -45,6 +50,7 @@ const AdminUsersPage = () => {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [toggling, setToggling] = useState(null) // user id being toggled
+  const [shops, setShops] = useState([])
 
   const loadUsers = async () => {
     setLoading(true)
@@ -63,6 +69,12 @@ const AdminUsersPage = () => {
 
   useEffect(() => { loadUsers() }, [search, roleFilter])
 
+  useEffect(() => {
+    shopAPI.getAll({ limit: 200 })
+      .then(res => setShops(res.data?.results || res.data || []))
+      .catch(() => {})
+  }, [])
+
   const openCreate = () => {
     setEditing(null)
     setForm(emptyForm)
@@ -77,6 +89,7 @@ const AdminUsersPage = () => {
       email: user.email || '',
       phone: user.phone || '',
       role: user.role || 'customer',
+      shop: user.shop || '',
       password: '',
       is_active: user.is_active !== false,
     })
@@ -98,14 +111,16 @@ const AdminUsersPage = () => {
         toast.success('User updated')
       } else {
         if (!form.password) { toast.error('Password is required'); setSaving(false); return }
-        await userAPI.create({
+        const payload = {
           first_name: form.first_name,
           last_name: form.last_name,
           email: form.email,
           phone: form.phone,
           role: form.role,
           password: form.password,
-        })
+        }
+        if (form.shop) payload.shop = form.shop
+        await userAPI.create(payload)
         toast.success('User created')
       }
       setShowModal(false)
@@ -269,7 +284,7 @@ const AdminUsersPage = () => {
           <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-gray-950 text-white">
               <tr>
-                {['User', 'Email', 'Phone', 'Role', 'Status', 'Joined', 'Actions'].map((h) => (
+                {['User', 'Email', 'Phone', 'Role', 'Shop', 'Status', 'Joined', 'Actions'].map((h) => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -278,7 +293,7 @@ const AdminUsersPage = () => {
               {loading ? (
                 <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">Loading users...</td></tr>
               ) : users.length === 0 ? (
-                <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">No users found</td></tr>
+                <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">No users found</td></tr>
               ) : (
                 users.map((user) => (
                   <tr key={user.id} className="hover:bg-yellow-50/30 transition">
@@ -300,6 +315,7 @@ const AdminUsersPage = () => {
                         {user.role?.replace('_', ' ')}
                       </span>
                     </td>
+                    <td className="px-5 py-3.5 text-gray-500 text-xs">{user.shop_name || '—'}</td>
                     <td className="px-5 py-3.5">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
                         user.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
@@ -313,6 +329,13 @@ const AdminUsersPage = () => {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => navigate(`/admin/users/${user.id}`)}
+                          className="p-1.5 rounded-lg bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition"
+                          title="View Profile"
+                        >
+                          <FiEye size={13} />
+                        </button>
                         <button
                           onClick={() => openEdit(user)}
                           className="p-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 transition"
@@ -386,6 +409,14 @@ const AdminUsersPage = () => {
             <select className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} required>
               {ROLES.filter((r) => r.value).map((r) => (
                 <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="Assign Shop (optional)">
+            <select className={inputClass} value={form.shop} onChange={(e) => setForm({ ...form, shop: e.target.value })}>
+              <option value="">-- No Shop --</option>
+              {shops.map(s => (
+                <option key={s.id} value={s.id}>{s.name} ({s.city || 'No city'})</option>
               ))}
             </select>
           </FormField>

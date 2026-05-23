@@ -8,6 +8,7 @@ import {
   FiFileText,
   FiHome,
   FiSettings,
+  FiShoppingBag,
   FiShoppingCart,
   FiTool,
   FiTruck,
@@ -19,6 +20,7 @@ import {
 
 export const ROLES = {
   ADMIN: 'admin',
+  SOP_USER: 'sop_user',
   MANAGER: 'manager',
   TECHNICIAN: 'technician',
   SALES_STAFF: 'sales_staff',
@@ -28,12 +30,18 @@ export const ROLES = {
 
 export const roleGroups = {
   all: Object.values(ROLES),
-  management: [ROLES.ADMIN, ROLES.MANAGER],
-  sales: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_STAFF],
-  inventory: [ROLES.ADMIN, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
-  service: [ROLES.ADMIN, ROLES.MANAGER, ROLES.TECHNICIAN],
-  customerOps: [ROLES.ADMIN, ROLES.MANAGER, ROLES.SALES_STAFF, ROLES.CUSTOMER],
+  management: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER],
+  sales: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER, ROLES.SALES_STAFF],
+  inventory: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER, ROLES.INVENTORY_STAFF],
+  service: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER, ROLES.TECHNICIAN],
+  customerOps: [ROLES.ADMIN, ROLES.SOP_USER, ROLES.MANAGER, ROLES.SALES_STAFF, ROLES.CUSTOMER],
 }
+
+export const dynamicPermissionRoles = [
+  ROLES.MANAGER,
+  ROLES.SALES_STAFF,
+  ROLES.INVENTORY_STAFF,
+]
 
 // navItems: each item has roles (which roles CAN see it) and optional module (for manager dynamic check)
 export const navItems = [
@@ -49,26 +57,27 @@ export const navItems = [
   { path: '/expenses', label: 'Expenses', icon: FiDollarSign, roles: roleGroups.management, module: 'expenses' },
   { path: '/reports', label: 'Reports', icon: FiBarChart2, roles: roleGroups.management, module: 'reports' },
   { path: '/technician/jobs', label: 'My Jobs', icon: FiTool, roles: [ROLES.TECHNICIAN] },
+  { path: '/admin/shops', label: 'Shops', icon: FiShoppingBag, roles: [ROLES.ADMIN] },
+  { path: '/shop-setup', label: 'My Shop', icon: FiShoppingBag, roles: [ROLES.SOP_USER] },
   { path: '/admin/users', label: 'User Management', icon: FiShield, roles: [ROLES.ADMIN] },
-  { path: '/admin/manager-permissions', label: 'Manager Permissions', icon: FiShield, roles: [ROLES.ADMIN] },
+  { path: '/admin/manager-permissions', label: 'Staff Permissions', icon: FiShield, roles: [ROLES.ADMIN, ROLES.SOP_USER] },
   { path: '/admin/activity-logs', label: 'Activity Logs', icon: FiClock, roles: [ROLES.ADMIN] },
-  { path: '/settings', label: 'Settings', icon: FiSettings, roles: [...roleGroups.management, ROLES.CUSTOMER] },
+  { path: '/settings', label: 'Settings', icon: FiSettings, roles: roleGroups.all },
 ]
 
 /**
  * Returns true if the user can access a route/item.
- * For managers, also checks their dynamic module permissions (view action required).
+ * For dynamic staff roles, also checks module permissions (view action required).
  */
 export const canAccess = (user, roles, module) => {
   if (!roles?.length) return true
   if (!user?.role) return false
   if (!roles.includes(user.role)) return false
 
-  // Admins always pass
-  if (user.role === ROLES.ADMIN) return true
+  // Platform admin and shop owner are unrestricted inside their own backend scope.
+  if (user.role === ROLES.ADMIN || user.role === ROLES.SOP_USER) return true
 
-  // For managers: check dynamic module permission (view)
-  if (user.role === ROLES.MANAGER && module) {
+  if (dynamicPermissionRoles.includes(user.role) && module) {
     const perms = user.permissions || []
     return perms.some((p) => p.module === module && p.action === 'view')
   }
@@ -77,12 +86,12 @@ export const canAccess = (user, roles, module) => {
 }
 
 /**
- * Check if the manager user has a specific action on a module.
- * Non-managers always return true if they have role access.
+ * Check whether the user has a specific action on a module.
  */
 export const canDo = (user, module, action) => {
   if (!user) return false
-  if (user.role === ROLES.ADMIN || user.role !== ROLES.MANAGER) return true
+  if (user.role === ROLES.ADMIN || user.role === ROLES.SOP_USER) return true
+  if (!dynamicPermissionRoles.includes(user.role)) return true
   const perms = user.permissions || []
   return perms.some((p) => p.module === module && p.action === action)
 }

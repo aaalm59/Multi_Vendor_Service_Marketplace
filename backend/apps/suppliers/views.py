@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.serializers import ModelSerializer
 from apps.suppliers.models import Supplier, Purchase, PurchaseItem
 from apps.users.permissions import HasRolePermission, INVENTORY_ROLES
+from apps.shops.views import TenantScopedViewSetMixin
 
 class PurchaseItemSerializer(ModelSerializer):
     class Meta:
@@ -23,7 +24,7 @@ class SupplierSerializer(ModelSerializer):
         model = Supplier
         fields = '__all__'
 
-class SupplierViewSet(viewsets.ModelViewSet):
+class SupplierViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Supplier management API"""
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
@@ -33,11 +34,12 @@ class SupplierViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'email', 'phone']
     ordering_fields = ['name', 'total_purchases']
 
-class PurchaseViewSet(viewsets.ModelViewSet):
+class PurchaseViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """Purchase order API"""
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
     permission_classes = [HasRolePermission]
+    permission_module = 'suppliers'
     allowed_roles = INVENTORY_ROLES
     filterset_fields = ['supplier', 'status']
     ordering_fields = ['purchase_date', 'total_amount']

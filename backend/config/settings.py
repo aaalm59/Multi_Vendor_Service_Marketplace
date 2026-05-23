@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     # Local apps
     'apps.authentication',
     'apps.users',
+    'apps.shops',
     'apps.customers',
     'apps.technicians',
     'apps.staff',

@@ -18,6 +18,7 @@ class User(AbstractUser):
     """Custom user model"""
     ROLE_CHOICES = (
         ('admin', 'Admin'),
+        ('sop_user', 'SOP User / Shop Manager'),
         ('manager', 'Manager'),
         ('technician', 'Technician'),
         ('sales_staff', 'Sales Staff'),
@@ -29,9 +30,20 @@ class User(AbstractUser):
     phone = models.CharField(max_length=15, unique=True, null=True, blank=True)
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='customer')
+    shop = models.ForeignKey(
+        'shops.Shop',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='users',
+        help_text='Tenant shop for SOP users and staff. Super admins/customers may be global.',
+    )
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     bio = models.TextField(blank=True)
     is_verified = models.BooleanField(default=False)
+    face_encoding = models.JSONField(null=True, blank=True)
+    face_registered = models.BooleanField(default=False)
+    last_face_login = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     USERNAME_FIELD = 'email'
@@ -45,6 +57,7 @@ class User(AbstractUser):
             models.Index(fields=['email']),
             models.Index(fields=['phone']),
             models.Index(fields=['role']),
+            models.Index(fields=['shop', 'role']),
         ]
     
     def __str__(self):
@@ -52,7 +65,11 @@ class User(AbstractUser):
 
 
 class ManagerPermission(models.Model):
-    """Dynamic per-module permissions that Admin assigns to a Manager user."""
+    """Dynamic per-module permissions assigned to a shop staff user.
+
+    The model name is kept for migration/API compatibility with the existing
+    manager-permissions endpoint, but it now powers staff RBAC too.
+    """
     MODULE_CHOICES = (
         ('customers', 'Customers'),
         ('bookings', 'Bookings'),
@@ -71,6 +88,9 @@ class ManagerPermission(models.Model):
         ('update', 'Update'),
         ('delete', 'Delete'),
         ('export_csv', 'Export CSV'),
+        ('export', 'Export'),
+        ('approve', 'Approve'),
+        ('assign', 'Assign'),
         ('manage_staff', 'Manage Staff'),
         ('manage_inventory', 'Manage Inventory'),
         ('manage_services', 'Manage Services'),
@@ -81,7 +101,6 @@ class ManagerPermission(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='manager_permissions',
-        limit_choices_to={'role': 'manager'},
     )
     module = models.CharField(max_length=50, choices=MODULE_CHOICES)
     action = models.CharField(max_length=50, choices=ACTION_CHOICES)
@@ -89,8 +108,8 @@ class ManagerPermission(models.Model):
     class Meta:
         unique_together = ('manager', 'module', 'action')
         ordering = ['manager', 'module', 'action']
-        verbose_name = 'Manager Permission'
-        verbose_name_plural = 'Manager Permissions'
+        verbose_name = 'Staff Permission'
+        verbose_name_plural = 'Staff Permissions'
 
     def __str__(self):
         return f"{self.manager.get_full_name()} — {self.module}:{self.action}"

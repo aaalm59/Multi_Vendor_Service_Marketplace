@@ -182,6 +182,19 @@ export const serviceAPI = {
     apiClient.patch(`/services/${id}/`, data),
   delete: (id) =>
     apiClient.delete(`/services/${id}/`),
+  getServiceAnalytics: () =>
+    apiClient.get('/services/service_analytics/'),
+}
+
+export const serviceCategoryAPI = {
+  getAll: (params) =>
+    apiClient.get('/services/categories/', { params }),
+  create: (data) =>
+    apiClient.post('/services/categories/', data),
+  update: (id, data) =>
+    apiClient.patch(`/services/categories/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/services/categories/${id}/`),
 }
 
 // Product APIs
@@ -200,6 +213,8 @@ export const productAPI = {
     apiClient.get('/inventory/products/low_stock/'),
   getByBarcode: (barcode) =>
     apiClient.get(`/inventory/products/by_barcode/?barcode=${barcode}`),
+  getInventoryAnalytics: () =>
+    apiClient.get('/inventory/products/inventory_analytics/'),
 }
 
 // Category APIs
@@ -222,6 +237,10 @@ export const invoiceAPI = {
     apiClient.post('/billing/invoices/', data),
   generatePDF: (id) =>
     apiClient.post(`/billing/invoices/${id}/generate_pdf/`),
+  getBillingAnalytics: () =>
+    apiClient.get('/billing/invoices/billing_analytics/'),
+  getDailySummary: () =>
+    apiClient.get('/billing/invoices/daily_summary/'),
 }
 
 // Supplier APIs

@@ -3,24 +3,36 @@ from apps.customers.models import Customer
 from apps.users.models import User
 from apps.users.serializers import UserSerializer
 
+
 class CustomerSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    
+
     class Meta:
         model = Customer
         fields = ['id', 'user', 'gst_number', 'shop_name', 'address', 'city', 'state', 'postal_code', 'total_spent', 'average_rating', 'created_at']
 
+
 class CustomerDetailSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    
+    service_shop_name = serializers.SerializerMethodField()
+    invoice_count = serializers.SerializerMethodField()
+
+    def get_service_shop_name(self, obj):
+        return obj.shop.name if obj.shop else None
+
+    def get_invoice_count(self, obj):
+        return obj.invoices.count()
+
     class Meta:
         model = Customer
         fields = '__all__'
+
 
 class CustomerUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = ['gst_number', 'shop_name', 'address', 'city', 'state', 'postal_code', 'preferred_contact']
+
 
 class CustomerCreateSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(write_only=True)
@@ -31,18 +43,9 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'id',
-            'first_name',
-            'last_name',
-            'email',
-            'phone',
-            'gst_number',
-            'shop_name',
-            'address',
-            'city',
-            'state',
-            'postal_code',
-            'preferred_contact',
+            'id', 'first_name', 'last_name', 'email', 'phone',
+            'gst_number', 'shop_name', 'address', 'city', 'state',
+            'postal_code', 'preferred_contact',
         ]
 
     def create(self, validated_data):

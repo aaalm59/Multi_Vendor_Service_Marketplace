@@ -98,6 +98,8 @@ export const customerAPI = {
     apiClient.get(`/customers/top_customers/?limit=${limit}`),
   getBookings: (id) =>
     apiClient.get(`/customers/${id}/bookings/`),
+  getAnalytics: () =>
+    apiClient.get('/customers/customer_analytics/'),
 }
 
 // Booking APIs
@@ -219,12 +221,14 @@ export const productAPI = {
 
 // Category APIs
 export const categoryAPI = {
-  getAll: () =>
-    apiClient.get('/inventory/categories/'),
+  getAll: (params) =>
+    apiClient.get('/inventory/categories/', { params }),
   create: (data) =>
     apiClient.post('/inventory/categories/', data),
   update: (id, data) =>
     apiClient.patch(`/inventory/categories/${id}/`, data),
+  delete: (id) =>
+    apiClient.delete(`/inventory/categories/${id}/`),
 }
 
 // Invoice APIs

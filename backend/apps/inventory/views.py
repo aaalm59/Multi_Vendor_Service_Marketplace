@@ -1,18 +1,39 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework import serializers as drf_serializers
 from rest_framework.serializers import IntegerField, ModelSerializer, SerializerMethodField
 from django.db.models import F, Sum, ExpressionWrapper, DecimalField
 from apps.inventory.models import Product, ProductCategory, Inventory, StockMovement
+from apps.shops.models import Shop
 from apps.users.permissions import HasRolePermission, INVENTORY_ROLES, SALES_ROLES, ADMIN
 from apps.users.audit import AuditLoggingMixin
 from apps.shops.views import TenantScopedViewSetMixin
 
 
 class ProductCategorySerializer(ModelSerializer):
+    shop_name = SerializerMethodField()
+    product_count = SerializerMethodField()
+    # shop is injected by TenantScopedViewSetMixin.perform_create, not required in request data
+    shop = drf_serializers.PrimaryKeyRelatedField(
+        queryset=Shop.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    def get_shop_name(self, obj):
+        return obj.shop.name if obj.shop else None
+
+    def get_product_count(self, obj):
+        return obj.products.filter(is_active=True).count()
+
     class Meta:
         model = ProductCategory
         fields = '__all__'
+        # UniqueTogetherValidator for (shop, name) requires shop in request data,
+        # but shop is injected by TenantScopedViewSetMixin.perform_create.
+        # The DB unique constraint still enforces this at the database level.
+        validators = []
 
 
 class ProductSerializer(ModelSerializer):
@@ -88,7 +109,7 @@ class StockMovementSerializer(ModelSerializer):
 
 
 class ProductCategoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
-    queryset = ProductCategory.objects.all()
+    queryset = ProductCategory.objects.select_related('shop').all()
     serializer_class = ProductCategorySerializer
     permission_classes = [HasRolePermission]
     permission_module = 'inventory'
@@ -96,6 +117,15 @@ class ProductCategoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
         'read': SALES_ROLES | INVENTORY_ROLES,
         'write': INVENTORY_ROLES,
     }
+    search_fields = ['name']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        shop_id = self.request.query_params.get('shop')
+        user = self.request.user
+        if shop_id and (user.is_superuser or getattr(user, 'role', None) == ADMIN):
+            qs = qs.filter(shop_id=shop_id)
+        return qs
 
 
 class ProductViewSet(TenantScopedViewSetMixin, AuditLoggingMixin, viewsets.ModelViewSet):
